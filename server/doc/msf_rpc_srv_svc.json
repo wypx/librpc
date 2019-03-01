@@ -1,0 +1,13 @@
+{
+    "proc_name": "msf_agent",
+    "proc_author": "http://luotang.me",
+    "proc_version": "beta v1.0",
+    "proc_desc": "Micro agent service config file",
+    "proc_svcs":
+    [
+        {
+          "svc_name": "msf_rpc_srv",
+          "svc_libs": "libmsf_rpc_srv.so"
+        }
+    ]
+}
