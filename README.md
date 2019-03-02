@@ -19,3 +19,8 @@ make component communicating easier,using epoll event with unix socket and inter
 2. 支持事件消息订阅
 3. 支持主从节点故障迁移（zookeeper，redis etc）
 4. 支持客户端协议透明通信代理
+
+简单测试：
+![Alt text](https://github.com/wypx/librpc/blob/master/3rdparty/test_image/%E6%9C%8D%E5%8A%A1%E6%B3%A8%E5%86%8C%E5%92%8C%E4%BB%A3%E7%90%86.png)
+![Alt text](https://github.com/wypx/librpc/blob/master/3rdparty/test_image/UPnP%E7%94%9F%E4%BA%A7%E8%80%85.png)
+![Alt text](https://github.com/wypx/librpc/blob/master/3rdparty/test_image/DLNA%E6%B6%88%E8%B4%B9%E8%80%85.png)
