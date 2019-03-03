@@ -19,3 +19,6 @@ make component communicating easier,using epoll event with unix socket and inter
 2. 支持事件消息订阅
 3. 支持主从节点故障迁移（zookeeper，redis etc）
 4. 支持客户端协议透明通信代理
+
+简单测试：
+
