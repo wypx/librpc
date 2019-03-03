@@ -79,24 +79,11 @@ s32 network_init(void) {
         return -1;
     }
 
-    rpc->rx_ep_fd = msf_epoll_create();
-    if (rpc->rx_ep_fd < 0) {
-        return -1;
-    }
-
-    msf_add_event(rpc->rx_ep_fd, clic->fd, event, clic);
-
-    rpc->ev_ep_fd = msf_epoll_create();
-    if (rpc->ev_ep_fd < 0) {
-       return -1;
-    }
-    
     evc->fd = msf_eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC | EFD_SEMAPHORE);
     if (evc->fd < 0) {
         return -1;
     }
 
-    msf_add_event(rpc->ev_ep_fd, evc->fd, event, evc);
 
     printf("Network init client fd(%u) \n", clic->fd);
     printf("Network init event fd(%u) \n", evc->fd);
@@ -150,7 +137,7 @@ s32 client_init(s8 *name, s8 *host, s8 *port, srvcb req_scb, srvcb ack_scb) {
     memcpy(rpc->server_host, host, min(strlen(host), sizeof(rpc->server_host)));
     memcpy(rpc->server_port, port, min(strlen(port), sizeof(rpc->server_port)));
 
-    if (signal_init() < 0)	 goto error;
+    if (signal_init() < 0) goto error;
 
     fprintf(stderr, "Client signal init successful.\n");
 
@@ -184,6 +171,9 @@ s32 client_deinit(void) {
 
     sclose(rpc->ev_conn.fd);
     sclose(rpc->cli_conn.fd);
+
+    msf_event_base_loop_break(rpc->ev_rx_base);
+    msf_event_base_loop_break(rpc->ev_tx_base);
 
     rpc->state = rpc_uninit;
 

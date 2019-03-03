@@ -105,24 +105,23 @@ enum snd_stage {
 }__attribute__((__packed__));
 
 struct  network_ops {
-	s32 (*s_sock_init)(s8 *data, u32 len);
-	s32 (*s_option_cb)(s32 fd);
-	s32 (*s_read_cb)(s8 *data, u32 len);
-	s32 (*s_write_cb)(s8 *data, u32 len);
-	s32 (*s_drain_cb)(s8 *data, u32 len);
-	s32 (*s_close_cb)(s8 *data, u32 len);
+    s32 (*s_sock_init)(s8 *data, u32 len);
+    s32 (*s_option_cb)(s32 fd);
+    s32 (*s_read_cb)(s8 *data, u32 len);
+    s32 (*s_write_cb)(s8 *data, u32 len);
+    s32 (*s_drain_cb)(s8 *data, u32 len);
+    s32 (*s_close_cb)(s8 *data, u32 len);
 }__attribute__((__packed__));
 
-struct rx_thread {	  
-	pthread_t	tid;        /* unique ID id of this thread */
-	s32 	thread_idx;
-	s8		*thread_name; 
+struct rx_thread {
+    pthread_t   tid;        /* unique ID id of this thread */
+    s32     thread_idx;
+    s8      *thread_name; 
 
-	s32		epoll_num;
-	s32		epoll_fd;
-	s32		event_fd;
-	s32		timer_fd;
-          
+    s32     epoll_num;
+    s32     epoll_fd;
+    s32     event_fd;
+    s32     timer_fd;
 } __attribute__((__packed__));
 
 struct tx_thread {

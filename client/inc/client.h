@@ -11,7 +11,7 @@
 *
 **************************************************************************/
 
-#include <msf_network.h>
+#include <msf_event.h>
 #include <msf_list.h>
 #include <binary.h>
 
@@ -201,9 +201,6 @@ struct client {
     struct conn ev_conn;
     struct conn cli_conn;
 
-    s32     epoll_num;
-    s32     ev_ep_fd;
-    s32     rx_ep_fd;
     s32     timer_fd;
     s32     signal_fd;
 
@@ -215,6 +212,11 @@ struct client {
     
     pthread_t rx_tid;
     pthread_t tx_tid;
+    
+    struct msf_event_base *ev_rx_base;
+    struct msf_event_base *ev_tx_base;
+    struct msf_event *ev_rx;
+    struct msf_event *ev_tx;
 
     pthread_spinlock_t free_cmd_lock[buff_max];
     struct list_head free_cmd_list[buff_max];

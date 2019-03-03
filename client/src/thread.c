@@ -24,7 +24,6 @@ extern struct cmd* cmd_pop_tx(void);
 extern struct cmd* cmd_pop_ack(u32 seq);
 
 void conn_free(struct conn *c) {
-    msf_del_event(rpc->rx_ep_fd, c->fd);
     drain_fd(c->fd, 256);
     sclose(c->fd);
 }
@@ -170,9 +169,7 @@ s32 rx_thread_handle_req_direct(struct conn *c) {
         }
     }
 
-    bhs->srcid = bhs->srcid^bhs->dstid;
-    bhs->dstid = bhs->srcid^bhs->dstid;
-    bhs->srcid = bhs->srcid^bhs->dstid; 
+    MSF_SWAP(&bhs->srcid, &bhs->dstid);
     bhs->opcode = RPC_ACK;
     bhs->datalen = bhs->restlen;
     bhs->restlen = 0;
@@ -467,9 +464,10 @@ static void rx_thread_read_data(struct conn *c) {
     return;
 }
 
-static void rx_thread_loop(struct conn *c) {
+static void rx_thread_callback(void *arg) {
 
     s32 rc = -1;
+    struct conn *c = (struct conn*)arg;
     
     do {
         switch (c->desc.recv_stage) {
@@ -505,47 +503,18 @@ static void rx_thread_loop(struct conn *c) {
 void * rx_thread_worker(void *lparam) {
 
     struct client *rpc = (struct client*)lparam;
-    struct conn *c;
-    s32 idx = -1;
-    s32 nfds = invalid_socket;
-    struct epoll_event events[max_epoll_event];
 
     while (!rpc->flags) {
-
-        nfds = epoll_wait(rpc->rx_ep_fd, events, max_epoll_event, -1);
-        if (unlikely((0 == nfds) || (nfds < 0 && errno == EINTR))) {
-            continue;
-        }
-
-        if (unlikely((nfds < 0) && (errno != EINTR))) {
-            return NULL;
-        }
-
-        for (idx = 0; idx < nfds; idx++) {
-            /* 
-             * Notice:
-             * Epoll event struct's "data" is a union,
-             * one of data.fd and data.ptr is valid.
-             * refer:
-             * https://blog.csdn.net/sun_z_x/article/details/22581411
-             */
-            c = (struct conn *)events[idx].data.ptr;
-            if (unlikely(!c)) 
-                continue;
-
-            if (events[idx].events & EPOLLIN) {
-                //printf("RX thread read fd(%d) idx(%d).\n", c->fd, idx);
-                rx_thread_loop(c);
-            } 
-        }
+        msf_event_base_loop(rpc->ev_rx_base);
     }
     printf("RX thread will exit now.\n");
     return NULL;
 }
 
-static void tx_thread_loop(struct conn *c) {
+static void tx_thread_callback(void *arg) {
 
     s32 rc = -1;
+    struct conn *c = (struct conn*)arg;
     struct cmd *tx_cmd = NULL;
     struct basic_head *bhs = NULL;
 
@@ -597,40 +566,9 @@ static void tx_thread_loop(struct conn *c) {
 void * tx_thread_worker(void *lparam) {
 
     struct client *rpc = (struct client*)lparam;
-    struct conn *c = NULL;
-
-    s32 idx = -1;
-    s32 nfds = invalid_socket;
-    struct epoll_event events[max_epoll_event];
 
     while (!rpc->flags) {
-
-        nfds = epoll_wait(rpc->ev_ep_fd, events, max_epoll_event, -1);
-        if (unlikely((0 == nfds) || (nfds < 0 && errno == EINTR))) {
-            continue;
-        }
-
-        if (unlikely((nfds < 0) && (errno != EINTR))) {
-            return NULL;
-        }
-
-        for (idx = 0; idx < nfds; idx++) {
-            /* 
-             * Notice:
-             * Epoll event struct's "data" is a union,
-             * one of data.fd and data.ptr is valid.
-             * refer:
-             * https://blog.csdn.net/sun_z_x/article/details/22581411
-             */
-            c = (struct conn *)events[idx].data.ptr;
-            if (unlikely(!c)) 
-                continue;
-
-            if (events[idx].events & EPOLLIN) {
-                printf("TX thread event fd(%d) idx(%d).\n", c->fd, idx);
-                tx_thread_loop(c);
-            } 
-        }
+        msf_event_base_loop(rpc->ev_tx_base);
     }
     return NULL;
 }
@@ -638,6 +576,31 @@ void * tx_thread_worker(void *lparam) {
 s32 thread_init(void) {
 
     s32 rc = -1;
+
+    rpc->ev_tx_base = msf_event_base_create();
+    if (!rpc->ev_tx_base) {
+        return -1;
+    }
+
+    rpc->ev_rx_base = msf_event_base_create();
+    if (!rpc->ev_rx_base) {
+        return -1;
+    }
+
+    rpc->ev_tx = msf_event_create(rpc->ev_conn.fd, tx_thread_callback,
+                    NULL, NULL, &rpc->ev_conn);
+    if (!rpc->ev_tx) {
+        return -1;
+    }
+
+    rpc->ev_rx = msf_event_create(rpc->cli_conn.fd, rx_thread_callback,
+                    NULL, NULL, &rpc->cli_conn);
+    if (!rpc->ev_rx) {
+        return -1;
+    }
+
+    msf_event_add(rpc->ev_tx_base, rpc->ev_tx);
+    msf_event_add(rpc->ev_rx_base, rpc->ev_rx);
 
     rc = pthread_spawn(&rpc->tx_tid, (void*)tx_thread_worker, rpc);
     if (rc < 0) {
@@ -662,4 +625,3 @@ s32 thread_init(void) {
     return 0;
 }
 
-

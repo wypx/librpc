@@ -167,9 +167,7 @@ static s32 rx_thread_login_rsp(struct conn *c) {
         return -1;
     }
 
-    bhs->srcid = bhs->srcid^bhs->dstid; 	 
-    bhs->dstid = bhs->srcid^bhs->dstid; 	 
-    bhs->srcid = bhs->srcid^bhs->dstid; 	
+    MSF_SWAP(&bhs->srcid, &bhs->dstid);
     bhs->opcode = RPC_ACK;
     bhs->errcode = RPC_EXEC_SUCC;
 
@@ -204,9 +202,7 @@ static s32 rx_thread_proxy_req(struct conn *c) {
     dst_conn = conn_find_by_id(bhs->dstid);
     if (unlikely(!dst_conn)) {
         printf("Peer id(%u) offline.\n", bhs->dstid);
-        bhs->srcid = bhs->srcid^bhs->dstid;
-        bhs->dstid = bhs->srcid^bhs->dstid;
-        bhs->srcid = bhs->srcid^bhs->dstid;
+        MSF_SWAP(&bhs->srcid, &bhs->dstid);
         bhs->datalen = 0;
         bhs->restlen = 0;
         bhs->opcode = RPC_ACK;
@@ -240,17 +236,17 @@ static void rx_thread_handle_bhs(struct conn *c) {
     printf("###################################\n");
     printf("bhs:\n");
     printf("bhs version:0x%x\n",bhs->version);
-    printf("bhs magic:0x%x\n", 	bhs->magic);
-    printf("bhs srcid:0x%x\n", 	bhs->srcid);
-    printf("bhs dstid:0x%x\n", 	bhs->dstid);
-    printf("bhs opcode:%u\n", 	bhs->opcode);
-    printf("bhs cmd:%u\n", 		bhs->cmd);
-    printf("bhs seq:%u\n", 		bhs->seq);
-    printf("bhs errcode:%u\n", 	bhs->errcode);
-    printf("bhs datalen:%u\n", 	bhs->datalen);
-    printf("bhs restlen:%u\n", 	bhs->restlen);
+    printf("bhs magic:0x%x\n",  bhs->magic);
+    printf("bhs srcid:0x%x\n",  bhs->srcid);
+    printf("bhs dstid:0x%x\n",  bhs->dstid);
+    printf("bhs opcode:%u\n",   bhs->opcode);
+    printf("bhs cmd:%u\n",      bhs->cmd);
+    printf("bhs seq:%u\n",      bhs->seq);
+    printf("bhs errcode:%u\n",  bhs->errcode);
+    printf("bhs datalen:%u\n",  bhs->datalen);
+    printf("bhs restlen:%u\n",  bhs->restlen);
     printf("bhs checksum:%u\n", bhs->checksum);
-    printf("bhs timeout:%u\n", 	bhs->timeout);
+    printf("bhs timeout:%u\n",  bhs->timeout);
     printf("###################################\n");
     printf("\n");
 
@@ -338,9 +334,7 @@ static void rx_thread_read_data(struct conn *c) {
                 if (RPC_LOGIN == bhs->cmd) {
                     struct login_pdu *login = (struct login_pdu *)new_cmd->cmd_buff;
                     printf("Login name is (%s) chap(%u).\n", login->name, login->chap);
-                    bhs->srcid = bhs->srcid^bhs->dstid;
-                    bhs->dstid = bhs->srcid^bhs->dstid;
-                    bhs->srcid = bhs->srcid^bhs->dstid;
+                    MSF_SWAP(&bhs->srcid, &bhs->dstid);
                     bhs->datalen = bhs->restlen;
                     bhs->restlen = 0;
                     bhs->opcode = RPC_ACK;
@@ -354,9 +348,7 @@ static void rx_thread_read_data(struct conn *c) {
         dst_conn = conn_find_by_id(bhs->dstid);
         if (unlikely(!dst_conn)) {
             printf("Peer id(%u) offline.\n", bhs->dstid);
-            bhs->srcid = bhs->srcid^bhs->dstid;
-            bhs->dstid = bhs->srcid^bhs->dstid;
-            bhs->srcid = bhs->srcid^bhs->dstid;
+            MSF_SWAP(&bhs->srcid, &bhs->dstid);
             bhs->datalen = 0;
             bhs->restlen = 0;
             bhs->opcode = RPC_ACK;
