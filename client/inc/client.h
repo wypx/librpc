@@ -12,7 +12,7 @@
 **************************************************************************/
 
 #include <msf_event.h>
-#include <msf_list.h>
+#include <msf_log.h>
 #include <binary.h>
 
 //http://itindex.net/detail/53322-rpc-%E6%A1%86%E6%9E%B6-bangerlee
@@ -30,6 +30,7 @@
 
 #define HAVE_GCC_ATOMICS        1
 #define MSF_HAVE_EVENTFD        1
+#define RPC_LOG_FILE_PATH       "%s.log"
 
 typedef s32 (*srvcb)(s8 *data, u32 len, u32 cmd);
 
@@ -223,6 +224,10 @@ struct client {
 
     struct timeval lasttime;
 } __attribute__((__packed__));
+
+extern struct client *rpc;
+#define MSF_RPC_LOG(level, ...) \
+    log_write(level, rpc->name, __func__, __FILE__, __LINE__, __VA_ARGS__)
 
 s32 client_init(s8 *name, s8 *host, s8 *port, srvcb req_scb, srvcb ack_scb);
 s32 client_deinit(void);

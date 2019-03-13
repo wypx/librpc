@@ -14,9 +14,5 @@
 
 s32 cluster_init() {
 
-	return 0;
+    return 0;
 }
-
-
-
-

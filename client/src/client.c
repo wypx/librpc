@@ -34,7 +34,7 @@ static void client_timer(s32 fd, short events, void *arg) {
 
         //client_reg_heart(RPC_HEARTBEAT);
 
-        printf("client_timer called at %d: %.3f seconds elapsed.\n",
+        MSF_RPC_LOG(DBG_INFO, "client_timer called at %d: %.3f seconds elapsed.",
                 (int)newtime.tv_sec, elapsed);
         rpc->lasttime = newtime;        
 }
@@ -85,8 +85,8 @@ s32 network_init(void) {
     }
 
 
-    printf("Network init client fd(%u) \n", clic->fd);
-    printf("Network init event fd(%u) \n", evc->fd);
+    MSF_RPC_LOG(DBG_INFO,  "Network init client fd(%u)", clic->fd);
+    MSF_RPC_LOG(DBG_INFO,  "Network init event fd(%u)", evc->fd);
 
     usleep(500);
     
@@ -96,19 +96,19 @@ s32 network_init(void) {
 s32 timer_init(void) {
 
 #if 0
-	event_assign(&rpc->time_event, rpc->recv_base, -1, EV_PERSIST, 
-		client_timer, (void*)&rpc->time_event);
+    event_assign(&rpc->time_event, rpc->recv_base, -1, EV_PERSIST, 
+    	client_timer, (void*)&rpc->time_event);
 
-	struct timeval tv; 
-	evutil_timerclear(&tv);
-	tv.tv_sec = 600;
-	if (event_add(&rpc->time_event, &tv) != 0) {
-		fprintf(stderr, "add timer event error: %s\n", 
-			strerror(errno));
-		return -1;
-	}
-	
-	evutil_gettimeofday(&rpc->lasttime, NULL);
+    struct timeval tv; 
+    evutil_timerclear(&tv);
+    tv.tv_sec = 600;
+    if (event_add(&rpc->time_event, &tv) != 0) {
+        fprintf(stderr, "add timer event error: %", 
+        strerror(errno));
+        return -1;
+    }
+
+    evutil_gettimeofday(&rpc->lasttime, NULL);
 #endif
 
     return 0;
@@ -117,17 +117,22 @@ s32 timer_init(void) {
 s32 client_init(s8 *name, s8 *host, s8 *port, srvcb req_scb, srvcb ack_scb) {
 
     if (unlikely(!name || !host || !port || !req_scb || !ack_scb)) {
-        fprintf(stderr, "RPC client init param invalid.\n");
+        MSF_RPC_LOG(DBG_ERROR, "RPC client init param invalid");
         return -1;
     }
+
+    s8 log_path[256] = { 0 };
+
+    snprintf(log_path, sizeof(log_path)-1, RPC_LOG_FILE_PATH, name);
+    log_init(log_path);
 
     msf_memzero(rpc, sizeof(struct client));
     rpc->state = rpc_uninit;
     rpc->rx_tid = ~0;
     rpc->tx_tid = ~0;
-    if (strstr(name, "upnp")) {
+    if (strstr(name, "UPNP")) {
         rpc->cid = RPC_UPNP_ID;
-    } else if (strstr(name, "dlna")) {
+    } else if (strstr(name, "DLNA")) {
         rpc->cid = RPC_DLNA_ID;
     }
     
@@ -139,19 +144,19 @@ s32 client_init(s8 *name, s8 *host, s8 *port, srvcb req_scb, srvcb ack_scb) {
 
     if (signal_init() < 0) goto error;
 
-    fprintf(stderr, "Client signal init successful.\n");
+    MSF_RPC_LOG(DBG_INFO, "Client signal init successful");
 
     if (cmd_init() < 0) goto error;
     
-    fprintf(stderr, "Client cmd init successful.\n");
+    MSF_RPC_LOG(DBG_INFO, "Client cmd init successful");
 
     if (network_init() < 0)   goto error;
 
-    fprintf(stderr, "Client network init successful.\n");
+    MSF_RPC_LOG(DBG_INFO, "Client network init successful");
 
     if (thread_init() < 0) 	 goto error;
 
-    fprintf(stderr, "Client thread init successful.\n");
+    MSF_RPC_LOG(DBG_INFO, "Client thread init successful");
 
     rpc->state = rpc_inited;
 
@@ -186,11 +191,11 @@ s32 client_service(struct basic_pdu *pdu) {
     struct cmd *new_cmd = NULL;
 
     if (rpc->state != rpc_inited) {
-        fprintf(stderr, "client_state: %d\n", rpc->state);
+        MSF_RPC_LOG(DBG_INFO, "client_state: %d", rpc->state);
         return -1;
     }
 
-    printf("Call service head len(%lu) payload(%u) cmd(%u)\n", 
+    MSF_RPC_LOG(DBG_INFO, "Call service head len(%lu) payload(%u) cmd(%u)", 
         sizeof(struct basic_head), pdu->paylen, pdu->cmd);
 
     new_cmd = cmd_new(max(pdu->paylen, pdu->restlen));
@@ -230,13 +235,13 @@ s32 client_service(struct basic_pdu *pdu) {
         sem_init(&(new_cmd)->ack_sem, 0, 0);
         /* Check what happened */
         if (-1 == sem_wait_i(&(new_cmd->ack_sem), pdu->timeout)) {
-            printf("Wait for service ack timeout(%u).\n", pdu->timeout);
+            MSF_RPC_LOG(DBG_ERROR, "Wait for service ack timeout(%u)", pdu->timeout);
             sem_destroy(&(new_cmd)->ack_sem);
             cmd_free(new_cmd);
             return -2;
         } 
 
-        printf("Notify peer errcode[%d].\n", bhs->errcode);
+        MSF_RPC_LOG(DBG_INFO, "Notify peer errcode[%d]", bhs->errcode);
 
         if (likely(RPC_EXEC_SUCC == bhs->errcode)) {
             memcpy(pdu->restload, (s8*)new_cmd->buffer, pdu->restlen);

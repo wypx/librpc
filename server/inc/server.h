@@ -16,6 +16,7 @@
 #define _GNU_SOURCE
 
 #include <msf_list.h>
+#include <msf_log.h>
 #include <msf_network.h>
 #include <msf_process.h>
 #include <binary.h>
@@ -335,6 +336,9 @@ struct server {
 
 
 extern struct server *srv;
+
+#define MSF_RPC_LOG(level, ...) \
+    log_write(level, "AGENT", __func__, __FILE__, __LINE__, __VA_ARGS__)
 
 s32 server_init(void);
 void server_deinit(void);

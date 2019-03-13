@@ -1,6 +1,10 @@
 
 #include "client.h"
 
+#define MSF_MOD_DLNA "DLNA"
+#define MSF_DLNA_LOG(level, ...) \
+    log_write(level, MSF_MOD_DLNA, __func__, __FILE__, __LINE__, __VA_ARGS__)
+
 struct upnp_param_t {
     u8  upnp_nat;
     u8  upnp_discovery;
@@ -21,7 +25,7 @@ struct dlna_param_t    {
 
 s32 dlna_req_scb(s8 *data, u32 len, u32 cmd) {
 
-    printf("DLNA req service callback data(%p) len(%d) cmd(%d).\n",
+    MSF_DLNA_LOG(DBG_INFO, "DLNA req service callback data(%p) len(%d) cmd(%d).",
                 data, len, cmd);
 
     if (DLNA_GET_PARAM == cmd) {
@@ -34,15 +38,15 @@ struct upnp_param_t upnp;
 
 s32 dlna_ack_scb(s8 *data, u32 len, u32 cmd) {
 
-    printf("DLNA ack service callback data(%p) len(%d) cmd(%d).\n",
+    MSF_DLNA_LOG(DBG_INFO, "DLNA ack service callback data(%p) len(%d) cmd(%d).",
                    data, len, cmd);
 
     if (UPNP_GET_PARAM == cmd) {
         msf_memzero(&upnp, sizeof(upnp));
         memcpy(&upnp, data, sizeof(upnp));
-        printf("upnp friend_name= %s\n", upnp.friend_name);
-        printf("upnp_discovery = %d\n", upnp.upnp_nat);
-        printf("upnp_nat = %d\n", upnp.upnp_discovery);
+        MSF_DLNA_LOG(DBG_INFO, "upnp friend_name= %s.", upnp.friend_name);
+        MSF_DLNA_LOG(DBG_INFO, "upnp_discovery = %d.", upnp.upnp_nat);
+        MSF_DLNA_LOG(DBG_INFO, "upnp_nat = %d.", upnp.upnp_discovery);
     }
 
     return 0;
@@ -55,7 +59,7 @@ s32 main () {
 
     s32 rc = -1;
     
-    rc = client_init("dlna", local_host_v4, server_port, dlna_req_scb, dlna_ack_scb);
+    rc = client_init(MSF_MOD_DLNA, local_host_v4, server_port, dlna_req_scb, dlna_ack_scb);
     if (rc < 0) return -1;
 
     memset(&upnp, 0, sizeof(struct upnp_param_t));
@@ -74,11 +78,11 @@ s32 main () {
     rc = client_service(&pdu);
 
     if (rc != RPC_EXEC_SUCC) {
-        printf("RPC call service  errcode is %d.\n", rc);
+        MSF_DLNA_LOG(DBG_INFO, "RPC call service  errcode is %d.", rc);
     } else {
-        printf("upnp friend_name= %s\n", upnp.friend_name);
-        printf("upnp_discovery = %d\n", upnp.upnp_nat);
-        printf("upnp_nat = %d\n", upnp.upnp_discovery);
+        MSF_DLNA_LOG(DBG_INFO, "upnp friend_name= %s.", upnp.friend_name);
+        MSF_DLNA_LOG(DBG_INFO, "upnp_discovery = %d.", upnp.upnp_nat);
+        MSF_DLNA_LOG(DBG_INFO, "upnp_nat = %d.", upnp.upnp_discovery);
     }
 
     pdu.timeout = MSF_NO_WAIT;
@@ -88,7 +92,7 @@ s32 main () {
     while (1) {
         rc = client_service(&pdu);
         if (rc != RPC_EXEC_SUCC) {
-           printf("RPC call service  errcode is %d.\n", rc);
+           MSF_DLNA_LOG(DBG_ERROR, "RPC call service  errcode is %d.", rc);
         } 
         sleep(2);
     }

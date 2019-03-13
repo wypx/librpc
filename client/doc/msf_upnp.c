@@ -1,6 +1,10 @@
 
 #include "client.h"
 
+#define MSF_MOD_UPNP "UPNP"
+#define MSF_UPNP_LOG(level, ...) \
+    log_write(level, MSF_MOD_UPNP, __func__, __FILE__, __LINE__, __VA_ARGS__)
+
 struct upnp_param_t {
     u8  upnp_nat;
     u8  upnp_discovery;
@@ -21,13 +25,13 @@ struct dlna_param_t    {
 
 s32 upnp_req_scb(s8 *data, u32 len, u32 cmd) {
 
-    printf("UPnP req service callback data(%p) len(%d) cmd(%d).\n", data, len, cmd);
+    MSF_UPNP_LOG(DBG_INFO, "UPnP req service callback data(%p) len(%d) cmd(%d).", data, len, cmd);
     
     if (UPNP_GET_PARAM == cmd) {
         if (data && len == sizeof(struct upnp_param_t)) 
             memcpy(data, &upnp, sizeof(upnp));
         else
-            printf("Callback param is error.\n");
+             MSF_UPNP_LOG(DBG_INFO, "Callback param is error.");
     } else if (RPC_DEBUG_ON == cmd) {
 
     } else if (RPC_DEBUG_OFF == cmd) {
@@ -38,7 +42,7 @@ s32 upnp_req_scb(s8 *data, u32 len, u32 cmd) {
 
 s32 upnp_ack_scb(s8 *data, u32 len, u32 cmd) {
 
-    printf("UPnP ack service callback data(%p) len(%d) cmd(%d).\n",
+     MSF_UPNP_LOG(DBG_INFO, "UPnP ack service callback data(%p) len(%d) cmd(%d).",
                    data, len, cmd);
 
     return 0;
@@ -50,13 +54,12 @@ s32 upnp_ack_scb(s8 *data, u32 len, u32 cmd) {
 s32 main () {
 
     s32 rc = -1;
-
-    #define UPNP_NAME "rpc_upnp"
-    memcpy(upnp.friend_name, UPNP_NAME, strlen(UPNP_NAME));
+    
+    memcpy(upnp.friend_name, MSF_MOD_UPNP, strlen(MSF_MOD_UPNP));
     upnp.upnp_nat = 1;
     upnp.upnp_discovery = 2;
 
-    rc = client_init("upnp", local_host_v4, server_port, upnp_req_scb, upnp_ack_scb);
+    rc = client_init(MSF_MOD_UPNP, local_host_v4, server_port, upnp_req_scb, upnp_ack_scb);
     if (rc < 0) return -1;
     
     while (1) 

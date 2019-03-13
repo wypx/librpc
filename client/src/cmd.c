@@ -134,14 +134,14 @@ struct cmd *cmd_new(s32 data_len) {
     idx = get_cmd_idx(data_len);
     if (idx < 0) return NULL;
 
-    printf("New cmd datalen(%d) idx(%d) toatal len(%u).\n",
+    MSF_RPC_LOG(DBG_INFO, "New cmd datalen(%d) idx(%d) toatal len(%u).",
         data_len, idx, g_cmd_len[idx]);
 
     pthread_spin_lock(&rpc->free_cmd_lock[idx]);
 
     if (list_empty(&rpc->free_cmd_list[idx])) {
 
-        printf("Need to new cmd item.\n");
+        MSF_RPC_LOG(DBG_INFO, "Need to new cmd item.");
 
         new_cmd = cmd_new_prealloc(idx);
         if (unlikely(!new_cmd)) {
@@ -191,7 +191,7 @@ struct cmd* cmd_pop_ack(u32 seq) {
     pthread_spin_lock(&rpc->ack_cmd_lock);
     
     if (list_empty(&rpc->ack_cmd_list)) {
-        fprintf(stderr, "TX ack buffer list is empty.\n");
+        MSF_RPC_LOG(DBG_INFO, "TX ack buffer list is empty.");
         pthread_spin_unlock(&rpc->ack_cmd_lock);
         return NULL;
     }
@@ -210,12 +210,12 @@ struct cmd* cmd_pop_ack(u32 seq) {
     }
     pthread_spin_unlock(&rpc->ack_cmd_lock);
 
-    fprintf(stderr, "TX ack buffer size(%d).\n", list_size(&rpc->ack_cmd_list));
+    MSF_RPC_LOG(DBG_INFO, "TX ack buffer size(%d).", list_size(&rpc->ack_cmd_list));
 
     if (!ack_cmd) {
-        fprintf(stderr, "Failed to pop one ack buffer_item.\n");
+        MSF_RPC_LOG(DBG_ERROR, "Failed to pop one ack buffer_item.");
     } else {
-        //fprintf(stderr, "Pop one ack buffer_item successful.\n");
+        //fprintf(stderr, "Pop one ack buffer_item successful.");
     }
     return ack_cmd;
 }
@@ -227,7 +227,7 @@ struct cmd* cmd_pop_tx(void) {
     pthread_spin_lock(&rpc->tx_cmd_lock);
 
     if (list_empty(&rpc->tx_cmd_list)) {
-        fprintf(stderr, "TX write buffer list is empty.\n");
+        MSF_RPC_LOG(DBG_INFO, "TX write buffer list is empty.");
         pthread_spin_unlock(&rpc->tx_cmd_lock);
         return NULL;
     }
@@ -238,7 +238,7 @@ struct cmd* cmd_pop_tx(void) {
     pthread_spin_unlock(&rpc->tx_cmd_lock);
 
     if (!tx_cmd) {
-        fprintf(stderr, "Failed to get one write buffer_item.\n");
+        MSF_RPC_LOG(DBG_ERROR, "Failed to get one write buffer_item.");
     } else {
         list_del_init(&tx_cmd->cmd_to_list);
     }
@@ -257,14 +257,14 @@ void cmd_free(struct cmd *old_cmd) {
     s32 rc = refcount_decr(&old_cmd->ref_cnt);
     if (rc > 0) return;
 
-    printf("Cmd free total len(%d) idx(%d)(%d).\n", old_cmd->total_len, idx, g_cmd_len[idx]);
+    MSF_RPC_LOG(DBG_INFO, "Cmd free total len(%d) idx(%d)(%d).", old_cmd->total_len, idx, g_cmd_len[idx]);
 
     pthread_spin_lock(&rpc->free_cmd_lock[idx]);
 
     cmd_num = list_size(&rpc->free_cmd_list[idx]);
     
     if (cmd_num > ITEM_MAX_ALLOC) {
-        printf("Buffer free item, cur_num(%d), max_num(%d), free it.\n", cmd_num, ITEM_MAX_ALLOC);
+        MSF_RPC_LOG(DBG_ERROR, "Buffer free item, cur_num(%d), max_num(%d), free it.", cmd_num, ITEM_MAX_ALLOC);
         sfree(old_cmd->buffer);
         sfree(old_cmd);
         pthread_spin_unlock(&rpc->free_cmd_lock[idx]);

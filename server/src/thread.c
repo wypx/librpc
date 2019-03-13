@@ -558,7 +558,7 @@ void * listen_thread_worker(void *arg) {
 
         if (events[idx].events & EPOLLIN) {
 
-        printf("Listen thread fd(%d) happen idx(%d).\n", c->clifd, idx);
+        MSF_RPC_LOG(DBG_INFO, "Listen thread fd(%d) happen idx(%d).\n", c->clifd, idx);
 
         if (c->clifd == srv->unix_socket ||
            c->clifd == srv->net_socket_v4 ||
@@ -570,7 +570,7 @@ void * listen_thread_worker(void *arg) {
         }
     }
 
-    printf("Listen thread(%ld) exit\n", srv->listen_tid);
+    MSF_RPC_LOG(DBG_ERROR, "Listen thread(%ld) exit\n", srv->listen_tid);
 
     return NULL;
 }
@@ -587,11 +587,11 @@ void * mgt_thread_worker(void *arg) {
 
         sem_wait_i(&srv->mgt_sem, MSF_WAIT_FOREVER);
 
-        printf("Managent thread do somthing....\n");
+        MSF_RPC_LOG(DBG_INFO, "Managent thread do somthing....\n");
 
     }
 
-    printf("Managent thread(%ld) exit\n", srv->mgt_tid);
+    MSF_RPC_LOG(DBG_INFO, "Managent thread(%ld) exit\n", srv->mgt_tid);
     return NULL;
 }
 
@@ -637,7 +637,7 @@ static void *rx_thread_worker(void *arg) {
                 continue;
 
             if (events[idx].events & EPOLLIN) {
-                printf("RX thread event happen fd(%d) idx(%d).\n", c->clifd, idx);
+                MSF_RPC_LOG(DBG_INFO, "RX thread event happen fd(%d) idx(%d).\n", c->clifd, idx);
                 rx_thread_read_loop(c);
             } 
 
@@ -648,7 +648,7 @@ static void *rx_thread_worker(void *arg) {
         }
     }
 
-    printf("RX thread(%u) exit\n", rx->thread_idx);
+    MSF_RPC_LOG(DBG_INFO, "RX thread(%u) exit\n", rx->thread_idx);
 
     return NULL;
 }
@@ -673,7 +673,7 @@ static void * tx_thread_worker(void *arg) {
 
         sem_wait_i(&tx->sem, MSF_WAIT_FOREVER);
 
-        fprintf(stderr, "TX thread try to get one cmd.\n");
+        MSF_RPC_LOG(DBG_INFO, "TX thread try to get one cmd.\n");
 
         pthread_spin_lock(&tx->tx_cmd_lock);
         if (list_empty(&tx->tx_cmd_list)) {
@@ -686,16 +686,16 @@ static void * tx_thread_worker(void *arg) {
         pthread_spin_unlock(&tx->tx_cmd_lock);
 
         if (unlikely(!new_cmd)) {
-            fprintf(stderr, "Tx thread fail to pop one cmd.\n");
+            MSF_RPC_LOG(DBG_ERROR, "Tx thread fail to pop one cmd.\n");
             continue;
         } else {
             list_del_init(&new_cmd->cmd_to_list);
-            fprintf(stderr, "Tx thread pop one cmd successful.\n");
+            MSF_RPC_LOG(DBG_INFO, "Tx thread pop one cmd successful.\n");
         }
 
         c = new_cmd->cmd_conn;
         if (unlikely(!c)) {
-            fprintf(stderr, "Cmd(%p) conn is invalid.\n", new_cmd);
+            MSF_RPC_LOG(DBG_ERROR, "Cmd(%p) conn is invalid.\n", new_cmd);
             continue;
         }
 
@@ -708,7 +708,7 @@ static void * tx_thread_worker(void *arg) {
         init_msghdr(&c->desc.tx_msghdr, c->desc.tx_iov, c->desc.tx_iovcnt);
         rc = msf_sendmsg(c->clifd, &c->desc.tx_msghdr);
 
-        printf("Sendmsg fd(%d) ret(%d).\n", c->clifd, rc);
+        MSF_RPC_LOG(DBG_INFO, "Sendmsg fd(%d) ret(%d).\n", c->clifd, rc);
 
         tx_handle_result(c, rc);
         if (io_write_done == c->desc.send_state) {
@@ -716,7 +716,7 @@ static void * tx_thread_worker(void *arg) {
         }
     }
 
-    printf("TX thread(%u) exit now.\n", tx->thread_idx);
+    MSF_RPC_LOG(DBG_INFO, "TX thread(%u) exit now.\n", tx->thread_idx);
     return NULL;
 }
 
@@ -728,7 +728,7 @@ s32 rx_thread_init(void)
 
     srv->rx_threads = calloc(srv->max_thread, sizeof(struct rx_thread));
     if (!srv->rx_threads) {
-        perror("Can't allocate rx thread descriptors");
+        MSF_RPC_LOG(DBG_INFO, "Can't allocate rx thread descriptors");
         return -1;
     }
 
@@ -754,7 +754,7 @@ s32 tx_thread_init(void) {
 
     srv->tx_threads = calloc(srv->max_thread, sizeof(struct tx_thread));
     if (!srv->tx_threads) {
-        perror("Can't allocate tx thread descriptors");
+        MSF_RPC_LOG(DBG_INFO, "Can't allocate tx thread descriptors.");
         return -1;
     }
 
@@ -830,7 +830,7 @@ void thread_deinit(void) {
         sfree(srv->rx_threads);
     }
 
-    printf("RX thread exit sucessful.\n");
+    MSF_RPC_LOG(DBG_INFO, "RX thread exit sucessful.\n");
 
     if (srv->tx_threads) {
         for (idx = 0; idx < srv->max_thread; idx++) {
@@ -840,14 +840,14 @@ void thread_deinit(void) {
         sfree(srv->tx_threads);
     }
 
-    printf("TX thread exit sucessful.\n");
+    MSF_RPC_LOG(DBG_INFO, "TX thread exit sucessful.\n");
 
     sclose(srv->listen_ep_fd);
 
-    printf("Listen thread exit sucessful.\n");
+    MSF_RPC_LOG(DBG_INFO, "Listen thread exit sucessful.\n");
 
     sem_destroy(&srv->mgt_sem);
 
-    printf("Mgt thread exit sucesful.\n");
+    MSF_RPC_LOG(DBG_INFO, "Mgt thread exit sucesful.\n");
 }
 
