@@ -26,7 +26,7 @@ static s32 callbackKeyCompare(void *privdata, const void *key1, const void *key2
     s32 l1, l2;
     ((void) privdata);
 
-    fprintf(stderr, "Key cmp(%s-%s).\n", (s8*)key1, (s8*)key2);
+    MSF_AGENT_LOG(DBG_INFO, "Key cmp(%s-%s).", (s8*)key1, (s8*)key2);
 
     l1 = sdslen((const sds)key1);
     l2 = sdslen((const sds)key2);
@@ -36,13 +36,13 @@ static s32 callbackKeyCompare(void *privdata, const void *key1, const void *key2
 
 static void callbackKeyDestructor(void *privdata, void *key) {
     ((void) privdata);
-    fprintf(stderr, "Key free (%p).\n", key);
+    MSF_AGENT_LOG(DBG_INFO, "Key free (%p).", key);
     sdsfree((sds)key);
 }
 
 static void callbackValDestructor(void *privdata, void *val) {
     DICT_NOTUSED(privdata);
-    fprintf(stderr, "Val free conn(%p).\n", val);
+    MSF_AGENT_LOG(DBG_INFO, "Val free conn(%p).", val);
 }
 
 static dictType keyptrDictType = {
@@ -69,15 +69,15 @@ s32 conn_init(void) {
     if (0 == getrlimit(RLIMIT_NOFILE, &rl)) {
         srv->max_fds = rl.rlim_max;
     } else {
-        fprintf(stderr, "Failed to query maximum file descriptor; "
-                        "falling back to maxconns.\n");
+        MSF_AGENT_LOG(DBG_ERROR, "Failed to query maximum file descriptor; "
+                        "falling back to maxconns.");
     }
 
     /* next_fd used to count */
     close(next_fd);
 
     if (!(srv->conns = calloc(srv->max_conns, sizeof(struct conn)))) {
-        fprintf(stderr, "Failed to allocate connection structures.\n");
+        MSF_AGENT_LOG(DBG_ERROR, "Failed to allocate connection structures.");
         return -1;
     }
 
@@ -91,10 +91,10 @@ s32 conn_init(void) {
         list_add_tail(&new_conn->conn_to_free, &srv->free_conn_list);
     }
 
-    fprintf(stdout, "MSF rpc server \'pid: %d\r\n", getpid());
+    MSF_AGENT_LOG(DBG_INFO, "MSF rpc server \'pid: %d.", getpid());
     srv->conn_dict = dictCreate(&keyptrDictType, NULL);
     if (!srv->conn_dict) {
-        fprintf(stderr, "Failed to create conn dict.\n");
+        MSF_AGENT_LOG(DBG_ERROR, "Failed to create conn dict.");
         return -1;
     }
     return 0;
@@ -109,7 +109,7 @@ s32 conn_add_dict(struct conn *c) {
     snprintf(key_id, sizeof(key_id)-1, "key_%u", c->cid);
     c->key = sdsnew(key_id);
 
-    printf("Add conn(ox%p) key id is (%s).\n", c, key_id);
+    MSF_AGENT_LOG(DBG_INFO, "Add conn(ox%p) key id is (%s).", c, key_id);
     
     return dictAdd(srv->conn_dict, c->key, c);
 }
@@ -125,7 +125,7 @@ struct conn *conn_find_by_id(u32 cid) {
     
     c = dictFetchValue(srv->conn_dict, key);
 
-    printf("Find conn(ox%p) key id is (%s).\n", c, key_id);
+    MSF_AGENT_LOG(DBG_INFO, "Find conn(ox%p) key id is (%s).", c, key_id);
 
     sdsfree(key);
 
@@ -151,10 +151,10 @@ struct conn *conn_new(s32 new_fd, s16 event) {
 
     if (new_conn) {
 
-        printf("Get a new conn(%p) successful.\n", new_conn);
+        MSF_AGENT_LOG(DBG_INFO, "Get a new conn(%p) successful.", new_conn);
 
-        socket_debug(new_fd);
-        socket_nonblocking(new_fd);
+        msf_socket_debug(new_fd);
+        msf_socket_nonblocking(new_fd);
 
         list_del_init(&new_conn->conn_to_free);
         new_conn->clifd = new_fd;
@@ -171,7 +171,7 @@ struct conn *conn_new(s32 new_fd, s16 event) {
         }
         new_conn->state = true;
     } else {
-        printf("Fail to get a new conn.\n");
+        MSF_AGENT_LOG(DBG_ERROR, "Fail to get a new conn.");
     }
     return new_conn;
 }

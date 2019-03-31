@@ -28,7 +28,7 @@ s32 network_init(void) {
 #endif
 
     if (srv->unix_enable) {
-        srv->unix_socket = server_unix_socket(srv->backlog, srv->unix_path, 0777);
+        srv->unix_socket = msf_server_unix_socket(srv->backlog, srv->unix_path, 0777);
         if (srv->unix_socket < 0) return -1;
 
         srv->listen_unix = conn_new(srv->unix_socket, event);
@@ -36,7 +36,7 @@ s32 network_init(void) {
     }
 
     if (srv->net_enable_v4) {
-        srv->net_socket_v4 = server_socket(srv->serv_node_v4, srv->net_prot_v4, 
+        srv->net_socket_v4 = msf_server_socket(srv->serv_node_v4, srv->net_prot_v4, 
                                         srv->tcp_port, srv->backlog);
         if (srv->net_socket_v4 < 0) return -1;
         
@@ -45,7 +45,7 @@ s32 network_init(void) {
     }
 
     if (srv->net_enable_v6) {
-        srv->net_socket_v6 = server_socket(srv->serv_node_v6, srv->net_prot_v6, 
+        srv->net_socket_v6 = msf_server_socket(srv->serv_node_v6, srv->net_prot_v6, 
                                         srv->tcp_port, srv->backlog);
         if (srv->net_socket_v6 < 0) return -1;
         

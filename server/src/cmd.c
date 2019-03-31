@@ -22,13 +22,13 @@ s32 cmd_init(void) {
     struct cmd *tmp_cmd = NULL;
 
     if (unlikely(0 == srv->max_cmd)) {
-        fprintf(stderr, "Config max cmd num is zero.\n");
+        MSF_AGENT_LOG(DBG_ERROR, "Config max cmd num is zero.");
         return -1;
     }
 
     srv->free_cmd = MSF_NEW(struct cmd, srv->max_cmd);
     if (!srv->free_cmd) {
-        fprintf(stderr, "Failed to alloc cmds, max_cmd = %d.\n", srv->max_cmd);
+        MSF_AGENT_LOG(DBG_ERROR, "Failed to alloc cmds, max_cmd = %d.", srv->max_cmd);
         return -1;
     }
 
@@ -56,7 +56,7 @@ struct cmd *cmd_new(void) {
     pthread_spin_unlock(&srv->cmd_lock);
 
     if (!new_cmd) {
-        fprintf(stderr, "failed to get one cmd\n");
+        MSF_AGENT_LOG(DBG_ERROR, "Failed to get one cmd.");
         srv->fail_cmds++;
     } else {
         list_del_init(&new_cmd->cmd_to_list);

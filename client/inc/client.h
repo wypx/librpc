@@ -12,7 +12,6 @@
 **************************************************************************/
 
 #include <msf_event.h>
-#include <msf_log.h>
 #include <binary.h>
 
 //http://itindex.net/detail/53322-rpc-%E6%A1%86%E6%9E%B6-bangerlee
@@ -213,7 +212,7 @@ struct client {
     
     pthread_t rx_tid;
     pthread_t tx_tid;
-    
+
     struct msf_event_base *ev_rx_base;
     struct msf_event_base *ev_tx_base;
     struct msf_event *ev_rx;

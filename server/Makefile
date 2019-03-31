@@ -43,10 +43,5 @@ make_conf:
 	cp -f doc/msf_rpc_srv.conf $(CONFPATH)
 	cp -f doc/msf_rpc_srv_svc.json $(CONFPATH)
 
-test:
-	@echo $(CC) $(BINPATH)/rpc_agent
-	@$(CC) $(IFLAGS) $(DFLAGS) -o $(BINPATH)/rpc_agent doc/agent.c -lm -lpthread -L$(LIBPATH) -lrpc 
-	@$(STRIP)  -x -R .note -R .comment $(BINPATH)/rpc_agent
-
 clean :
 	rm -rf $(TMP_PATH)

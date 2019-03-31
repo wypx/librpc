@@ -48,10 +48,10 @@ $(TMP_PATH)/%.o:%.c
 
 test:
 	@echo $(CC) $(BINPATH)/msf_upnp
-	@$(CC) -o $(BINPATH)/msf_upnp doc/msf_upnp.c -I $(ROOTDIR)/inc -I inc -I../../libmsf/msf/inc -lpthread -ldl -L $(LIBPATH) -lmsf -lipc 
+	@$(CC) -o $(BINPATH)/msf_upnp doc/msf_upnp.c -I $(ROOTDIR)/inc -I inc -I../../libmsf/msf/inc -lpthread -ldl -lnuma -L $(LIBPATH) -lmsf -lipc 
 	@$(STRIP)  -x -R .note -R .comment $(BINPATH)/msf_upnp
 	@echo $(CC) $(BINPATH)/msf_dlna
-	@$(CC) -o $(BINPATH)/msf_dlna doc/msf_dlna.c -I $(ROOTDIR)/inc -I inc -I../../libmsf/msf/inc -lpthread -ldl -L $(LIBPATH) -lmsf -lipc 
+	@$(CC) -o $(BINPATH)/msf_dlna doc/msf_dlna.c -I $(ROOTDIR)/inc -I inc -I../../libmsf/msf/inc -lpthread -ldl -lnuma -L $(LIBPATH) -lmsf -lipc 
 	@$(STRIP)  -x -R .note -R .comment $(BINPATH)/msf_dlna
 clean:
 	rm -rf $(TARGET) $(TMP_PATH)

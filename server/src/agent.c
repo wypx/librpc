@@ -12,15 +12,15 @@
 **************************************************************************/
 #include <server.h>
 
-static  __attribute__((constructor(101))) void before1()
+static  __attribute__((constructor(101))) void before_test1()
 {
  
-    printf("before1\n");
+    MSF_AGENT_LOG(DBG_INFO, "before1\n");
 }
-static  __attribute__((constructor(102))) void before2()
+static  __attribute__((constructor(102))) void before_test2()
 {
  
-    printf("before2\n");
+    MSF_AGENT_LOG(DBG_INFO, "before2\n");
 }
 
 
@@ -30,7 +30,7 @@ static  __attribute__((constructor(102))) void before2()
 	是对函数调用的一种优化*/
 __attribute__((const)) s32 test2()
 {
-	return 5;
+    return 5;
 }
 
 /* 表示函数的返回值必须被检查或使用,否则会警告*/
@@ -51,22 +51,21 @@ static inline __attribute__((always_inline)) void test5()
 
 __attribute__((destructor)) void after_main()  
 {  
-   printf("after main\n\n");  
+   MSF_AGENT_LOG(DBG_INFO, "after main\n\n");  
 } 
 
 
 static s32 agent_init(void *data, u32 len) {
 
+    s32 rc = -1;
     s8 buf[PATH_MAX] = { 0 };
 
-    s32 rslt = readlink("/proc/self/exe", buf, PATH_MAX-1);// buf返回"/a/b/c"
-
-    if (rslt < 0 || rslt >= PATH_MAX-1)
-    {
+    rc = readlink("/proc/self/exe", buf, PATH_MAX-1);
+    if (rc < 0 || rc >= PATH_MAX-1) {
        return -1;
     }
 
-    printf("Msf kernel excute path: %s\n", buf);
+    MSF_AGENT_LOG(DBG_INFO, "Msf shell excute path: %s.", buf);
 
     return server_init();
 }

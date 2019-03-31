@@ -16,14 +16,20 @@
 #define _GNU_SOURCE
 
 #include <msf_list.h>
-#include <msf_log.h>
 #include <msf_network.h>
-#include <msf_process.h>
+#include <msf_cpu.h>
+#include <msf_os.h>
 #include <binary.h>
 #include <dict.h>
 
 #include <sys/sysinfo.h>
 #include <sys/resource.h>
+
+#define MSF_MOD_AGENT "AGENT"
+
+#define MSF_AGENT_LOG(level, ...) \
+    log_write(level, MSF_MOD_AGENT, \
+                __func__, __FILE__, __LINE__, __VA_ARGS__)
 
 #define max_config_len      128
 #define max_conn_number     1024
@@ -336,9 +342,6 @@ struct server {
 
 
 extern struct server *srv;
-
-#define MSF_RPC_LOG(level, ...) \
-    log_write(level, "AGENT", __func__, __FILE__, __LINE__, __VA_ARGS__)
 
 s32 server_init(void);
 void server_deinit(void);

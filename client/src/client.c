@@ -26,19 +26,6 @@ extern struct cmd* cmd_pop_tx(void);
 extern struct cmd* cmd_pop_ack(void);
 extern s32 thread_init(void);
 
-static void client_timer(s32 fd, short events, void *arg) {
-        struct timeval newtime, difference;
-        gettimeofday(&newtime, NULL);
-        timersub(&newtime, &rpc->lasttime, &difference);
-        double  elapsed = difference.tv_sec + (difference.tv_usec / 1.0e6);
-
-        //client_reg_heart(RPC_HEARTBEAT);
-
-        MSF_RPC_LOG(DBG_INFO, "client_timer called at %d: %.3f seconds elapsed.",
-                (int)newtime.tv_sec, elapsed);
-        rpc->lasttime = newtime;        
-}
-
 s32 signal_init(void) {
     signal_handler(SIGHUP,	SIG_IGN);
     signal_handler(SIGTERM, SIG_IGN);
@@ -68,11 +55,11 @@ s32 network_init(void) {
     if (0 == msf_strncmp(rpc->server_host, local_host_v4, strlen(local_host_v4))
      || 0 == msf_strncmp(rpc->server_host, local_host_v6, strlen(local_host_v6))) {
         if (rpc->cid == RPC_UPNP_ID)
-            clic->fd = connect_to_unix_socket(MSF_RPC_UNIX_UPNP, MSF_RPC_UNIX_SERVER);
+            clic->fd = msf_connect_to_unix_socket(MSF_RPC_UNIX_UPNP, MSF_RPC_UNIX_SERVER);
         else
-            clic->fd = connect_to_unix_socket(MSF_RPC_UNIX_DLNA, MSF_RPC_UNIX_SERVER);
+            clic->fd = msf_connect_to_unix_socket(MSF_RPC_UNIX_DLNA, MSF_RPC_UNIX_SERVER);
     } else {
-        clic->fd = connect_to_host(rpc->server_host, rpc->server_port);
+        clic->fd = msf_connect_to_host(rpc->server_host, rpc->server_port);
     }
 
     if (clic->fd < 0) {
@@ -90,27 +77,6 @@ s32 network_init(void) {
 
     usleep(500);
     
-    return 0;
-}
-
-s32 timer_init(void) {
-
-#if 0
-    event_assign(&rpc->time_event, rpc->recv_base, -1, EV_PERSIST, 
-    	client_timer, (void*)&rpc->time_event);
-
-    struct timeval tv; 
-    evutil_timerclear(&tv);
-    tv.tv_sec = 600;
-    if (event_add(&rpc->time_event, &tv) != 0) {
-        fprintf(stderr, "add timer event error: %", 
-        strerror(errno));
-        return -1;
-    }
-
-    evutil_gettimeofday(&rpc->lasttime, NULL);
-#endif
-
     return 0;
 }
 
@@ -142,6 +108,8 @@ s32 client_init(s8 *name, s8 *host, s8 *port, srvcb req_scb, srvcb ack_scb) {
     memcpy(rpc->server_host, host, min(strlen(host), sizeof(rpc->server_host)));
     memcpy(rpc->server_port, port, min(strlen(port), sizeof(rpc->server_port)));
 
+    if (msf_timer_init() < 0) goto error;
+
     if (signal_init() < 0) goto error;
 
     MSF_RPC_LOG(DBG_INFO, "Client signal init successful");
@@ -169,10 +137,12 @@ error:
 
 s32 client_deinit(void) {
 
+    msf_timer_destroy();
+
     cmd_deinit();
 
-    drain_fd(rpc->ev_conn.fd, 256);
-    drain_fd(rpc->cli_conn.fd, 256);
+    msf_drain_fd(rpc->ev_conn.fd, 256);
+    msf_drain_fd(rpc->cli_conn.fd, 256);
 
     sclose(rpc->ev_conn.fd);
     sclose(rpc->cli_conn.fd);

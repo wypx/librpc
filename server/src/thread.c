@@ -60,18 +60,18 @@ void wait_for_thread_registration(void) {
 
 static inline void rx_wakeup_write(struct conn *c) {
 
-	s32 value;
+    s32 value;
 
-	if (!list_empty(&c->tx->tx_cmd_list)) {
-		sem_getvalue (&c->tx->sem, &value);
-		if (0 == value) {
-			printf("Try to wakeup tx thread(%p) thread_idx(%u)\n", 
-					c->tx, c->tx->thread_idx);
-			sem_post(&c->tx->sem);
-		}
-	}
-	
-	return;
+    if (!list_empty(&c->tx->tx_cmd_list)) {
+        sem_getvalue (&c->tx->sem, &value);
+        if (0 == value) {
+            MSF_AGENT_LOG(DBG_INFO, "Try to wakeup tx thread(%p) thread_idx(%u).", 
+                c->tx, c->tx->thread_idx);
+            sem_post(&c->tx->sem);
+        }
+    }
+
+    return;
 }
 
 void conn_update_rxdesc(struct conn *c, s32 rx_bytes)
@@ -105,12 +105,12 @@ void init_msghdr(struct msghdr *msg, struct iovec *iov, u32 iovlen) {
 void rx_handle_result(struct conn *c, s32 rc) {
 
     if (unlikely(0 == rc)) {
-        printf("Recv close by peer fd(%d) ret(%d) errno(%d)\n", 
-                c->clifd, rc, errno);
+        MSF_AGENT_LOG(DBG_ERROR, "Recv close by peer(%s) fd(%d) ret(%d) errno(%d).", 
+                c->name, c->clifd, rc, errno);
         conn_free(c);
         c->desc.recv_state = io_close;
     } else if (rc < 0) {
-        printf("Recvmsg fd(%d) errno(%d)\n", c->clifd, errno);
+        MSF_AGENT_LOG(DBG_ERROR, "Recvmsg peer(%s) fd(%d) errno(%d).", c->name, c->clifd, errno);
         if (errno == EINTR || errno == EAGAIN ||
            errno == EWOULDBLOCK) {
             c->desc.recv_state = io_read_half;
@@ -131,12 +131,12 @@ void rx_handle_result(struct conn *c, s32 rc) {
 void tx_handle_result(struct conn *c, s32 rc) {
 
     if (unlikely(0 == rc)) {
-        printf("Send close by peer fd(%d) ret(%d) errno(%d)\n", 
-            c->clifd, rc, errno);
+        MSF_AGENT_LOG(DBG_INFO, "Send close by peer(%s) fd(%d) ret(%d) errno(%d).", 
+            c->name, c->clifd, rc, errno);
         conn_free(c);
         c->desc.send_state = io_close;
     } else if (rc < 0) {
-        printf("Sendmsg fd(%d) errno(%d)\n", c->clifd, errno);
+        MSF_AGENT_LOG(DBG_ERROR, "Sendmsg peer(%s) fd(%d) errno(%d).", c->name, c->clifd, errno);
         if (errno == EINTR || errno == EAGAIN ||
            errno == EWOULDBLOCK) {
             c->desc.send_state = io_write_half;
@@ -201,7 +201,7 @@ static s32 rx_thread_proxy_req(struct conn *c) {
     
     dst_conn = conn_find_by_id(bhs->dstid);
     if (unlikely(!dst_conn)) {
-        printf("Peer id(%u) offline.\n", bhs->dstid);
+        MSF_AGENT_LOG(DBG_INFO, "Peer id(%u) offline.", bhs->dstid);
         MSF_SWAP(&bhs->srcid, &bhs->dstid);
         bhs->datalen = 0;
         bhs->restlen = 0;
@@ -209,7 +209,7 @@ static s32 rx_thread_proxy_req(struct conn *c) {
         new_cmd->cmd_conn = c;
         bhs->errcode = RPC_PEER_OFFLINE;
     } else {
-        printf("Peer id(%u) online.\n", bhs->dstid);
+        MSF_AGENT_LOG(DBG_INFO, "Peer id(%u) online.", bhs->dstid);
         new_cmd->cmd_conn = dst_conn;
         bhs->errcode = RPC_EXEC_SUCC;
     }
@@ -232,23 +232,21 @@ static void rx_thread_handle_bhs(struct conn *c) {
 
     bhs = &c->bhs;
 
-    printf("\n");
-    printf("###################################\n");
-    printf("bhs:\n");
-    printf("bhs version:0x%x\n",bhs->version);
-    printf("bhs magic:0x%x\n",  bhs->magic);
-    printf("bhs srcid:0x%x\n",  bhs->srcid);
-    printf("bhs dstid:0x%x\n",  bhs->dstid);
-    printf("bhs opcode:%u\n",   bhs->opcode);
-    printf("bhs cmd:%u\n",      bhs->cmd);
-    printf("bhs seq:%u\n",      bhs->seq);
-    printf("bhs errcode:%u\n",  bhs->errcode);
-    printf("bhs datalen:%u\n",  bhs->datalen);
-    printf("bhs restlen:%u\n",  bhs->restlen);
-    printf("bhs checksum:%u\n", bhs->checksum);
-    printf("bhs timeout:%u\n",  bhs->timeout);
-    printf("###################################\n");
-    printf("\n");
+    MSF_AGENT_LOG(DBG_INFO, "###################################");
+    MSF_AGENT_LOG(DBG_INFO, "bhs:");
+    MSF_AGENT_LOG(DBG_INFO, "bhs version:0x%x",bhs->version);
+    MSF_AGENT_LOG(DBG_INFO, "bhs magic:0x%x",  bhs->magic);
+    MSF_AGENT_LOG(DBG_INFO, "bhs srcid:0x%x",  bhs->srcid);
+    MSF_AGENT_LOG(DBG_INFO, "bhs dstid:0x%x",  bhs->dstid);
+    MSF_AGENT_LOG(DBG_INFO, "bhs opcode:%u",   bhs->opcode);
+    MSF_AGENT_LOG(DBG_INFO, "bhs cmd:%u",      bhs->cmd);
+    MSF_AGENT_LOG(DBG_INFO, "bhs seq:%u",      bhs->seq);
+    MSF_AGENT_LOG(DBG_INFO, "bhs errcode:%u",  bhs->errcode);
+    MSF_AGENT_LOG(DBG_INFO, "bhs datalen:%u",  bhs->datalen);
+    MSF_AGENT_LOG(DBG_INFO, "bhs restlen:%u",  bhs->restlen);
+    MSF_AGENT_LOG(DBG_INFO, "bhs checksum:%u", bhs->checksum);
+    MSF_AGENT_LOG(DBG_INFO, "bhs timeout:%u",  bhs->timeout);
+    MSF_AGENT_LOG(DBG_INFO, "###################################");
 
     /* If bhs no data, handle bhs, otherwise goto recv data*/
     if (unlikely(RPC_MSG_SRV_ID == bhs->dstid)) {
@@ -257,7 +255,7 @@ static void rx_thread_handle_bhs(struct conn *c) {
             if (RPC_LOGIN == bhs->cmd) {
                 c->cid = bhs->srcid;
                 if (conn_add_dict(c) < 0) {
-                    printf("Add conn to dict fail.\n");
+                    MSF_AGENT_LOG(DBG_INFO, "Add conn to dict fail.");
                     conn_free(c);
                 }
                 c->desc.recv_stage = stage_recv_data;
@@ -268,12 +266,12 @@ static void rx_thread_handle_bhs(struct conn *c) {
     } else {
         if (RPC_REQ == bhs->opcode || RPC_ACK == bhs->opcode) {
             if (0 == bhs->datalen) {
-                printf("Direct send proxy req.\n");
+                MSF_AGENT_LOG(DBG_INFO, "Direct send proxy req.");
                 c->desc.recv_stage = stage_recv_next;
                 rx_thread_proxy_req(c);
             } else {
                 c->desc.recv_stage = stage_recv_data;
-                printf("Need to recv extra payload.\n");
+                MSF_AGENT_LOG(DBG_INFO, "Need to recv extra payload.");
             }
         }
     }
@@ -314,7 +312,7 @@ static void rx_thread_read_data(struct conn *c) {
     new_cmd = cmd_new();
     if (!new_cmd) return;
 
-    printf("Read data len is %u.\n", bhs->datalen);
+    MSF_AGENT_LOG(DBG_INFO, "Read data len is %u.", bhs->datalen);
 
     c->desc.rx_iovcnt = 0;
     c->desc.rx_iosize = 0;
@@ -323,7 +321,7 @@ static void rx_thread_read_data(struct conn *c) {
     init_msghdr(msg, c->desc.rx_iov, c->desc.rx_iovcnt);
     rc = msf_recvmsg(c->clifd, msg);
 
-    printf("Recv data len is %u.\n", rc);
+    MSF_AGENT_LOG(DBG_INFO, "Recv data len is %u.", rc);
 
     rx_handle_result(c, rc);
 
@@ -333,7 +331,8 @@ static void rx_thread_read_data(struct conn *c) {
             if (RPC_REQ == bhs->opcode) {
                 if (RPC_LOGIN == bhs->cmd) {
                     struct login_pdu *login = (struct login_pdu *)new_cmd->cmd_buff;
-                    printf("Login name is (%s) chap(%u).\n", login->name, login->chap);
+                    MSF_AGENT_LOG(DBG_DEBUG, "Login name is (%s) chap(%u).", login->name, login->chap);
+                    memcpy(c->name, login->name, max_conn_name-1);
                     MSF_SWAP(&bhs->srcid, &bhs->dstid);
                     bhs->datalen = bhs->restlen;
                     bhs->restlen = 0;
@@ -347,7 +346,7 @@ static void rx_thread_read_data(struct conn *c) {
 
         dst_conn = conn_find_by_id(bhs->dstid);
         if (unlikely(!dst_conn)) {
-            printf("Peer id(%u) offline.\n", bhs->dstid);
+            MSF_AGENT_LOG(DBG_INFO, "Peer id(%u) offline.", bhs->dstid);
             MSF_SWAP(&bhs->srcid, &bhs->dstid);
             bhs->datalen = 0;
             bhs->restlen = 0;
@@ -355,7 +354,7 @@ static void rx_thread_read_data(struct conn *c) {
             new_cmd->cmd_conn = c;
             bhs->errcode = RPC_PEER_OFFLINE;
         } else {
-            printf("Peer id(%u) online.\n", bhs->dstid);
+            MSF_AGENT_LOG(DBG_INFO, "Peer id(%u) online.", bhs->dstid);
             new_cmd->cmd_conn = dst_conn;
             bhs->errcode = RPC_EXEC_SUCC;
         }
@@ -386,7 +385,7 @@ static void rx_thread_read_loop(struct conn *c) {
     do {
         switch (c->desc.recv_stage) {
             case stage_recv_bhs:
-                printf("Stage to recv bhs.\n");
+                MSF_AGENT_LOG(DBG_INFO, "Stage to recv bhs.");
                 rx_thread_read_bhs(c);
                 if (io_read_half == c->desc.recv_state || 
                     io_close == c->desc.recv_state) {
@@ -394,7 +393,7 @@ static void rx_thread_read_loop(struct conn *c) {
                 }
                 break;
             case stage_recv_data:
-                printf("Stage to recv data.\n");
+                MSF_AGENT_LOG(DBG_INFO, "Stage to recv data.");
                 rx_thread_read_data(c);
                 if (io_read_half == c->desc.recv_state || 
                     io_close == c->desc.recv_state) {
@@ -402,7 +401,7 @@ static void rx_thread_read_loop(struct conn *c) {
                 }
                 break;
             case stage_recv_next:
-                printf("Stage to recv next.\n");
+                MSF_AGENT_LOG(DBG_INFO, "Stage to recv next.");
                 c->desc.recv_state = io_init;
                 c->desc.rx_iosize = 0;
                 c->desc.rx_iovcnt = 0;   
@@ -411,7 +410,7 @@ static void rx_thread_read_loop(struct conn *c) {
                 c->desc.recv_stage = stage_recv_bhs;
                 return;
             default:
-                printf("Stage default exit now.\n");
+                MSF_AGENT_LOG(DBG_INFO, "Stage default exit now.");
                 return;
         }
     } while(1);
@@ -499,7 +498,7 @@ static s32 rx_thread_accept(struct conn *c) {
 			} else if (errno == EMFILE || errno == ENFILE) {
 				//进程的上限EMFILE
 				//系统的上限ENFILE
-				fprintf(stderr, "too many open connections\n");	
+				MSF_AGENT_LOG(DBG_INFO, "too many open connections\n");	
 				//accept_new_conns(s, false);
 				stop = true;
 			} else {
@@ -530,7 +529,7 @@ void * listen_thread_worker(void *arg) {
 
     MSF_THREAD_NAME("rpc_listen");
 
-    thread_set_affinity(0);
+   thread_pin_to_cpu(0);
 
     while (!srv->stop_flags) {
 
@@ -558,7 +557,7 @@ void * listen_thread_worker(void *arg) {
 
         if (events[idx].events & EPOLLIN) {
 
-        MSF_RPC_LOG(DBG_INFO, "Listen thread fd(%d) happen idx(%d).\n", c->clifd, idx);
+        MSF_AGENT_LOG(DBG_INFO, "Listen thread fd(%d) happen idx(%d).", c->clifd, idx);
 
         if (c->clifd == srv->unix_socket ||
            c->clifd == srv->net_socket_v4 ||
@@ -570,7 +569,7 @@ void * listen_thread_worker(void *arg) {
         }
     }
 
-    MSF_RPC_LOG(DBG_ERROR, "Listen thread(%ld) exit\n", srv->listen_tid);
+    MSF_AGENT_LOG(DBG_ERROR, "Listen thread(%ld) exit.", srv->listen_tid);
 
     return NULL;
 }
@@ -581,17 +580,17 @@ void * mgt_thread_worker(void *arg) {
 
     MSF_THREAD_NAME("rpc_mgt");
 
-    thread_set_affinity(0);
+    thread_pin_to_cpu(0);
 
     while (!srv->stop_flags) {
 
         sem_wait_i(&srv->mgt_sem, MSF_WAIT_FOREVER);
 
-        MSF_RPC_LOG(DBG_INFO, "Managent thread do somthing....\n");
+        MSF_AGENT_LOG(DBG_INFO, "Managent thread do somthing....");
 
     }
 
-    MSF_RPC_LOG(DBG_INFO, "Managent thread(%ld) exit\n", srv->mgt_tid);
+    MSF_AGENT_LOG(DBG_INFO, "Managent thread(%ld) exit\n", srv->mgt_tid);
     return NULL;
 }
 
@@ -609,7 +608,7 @@ static void *rx_thread_worker(void *arg) {
     snprintf(rx_name, sizeof(rx_name)-1, "rpc_rx_%d", rx->thread_idx+1);
     MSF_THREAD_NAME(rx_name);
 
-    thread_set_affinity(rx->thread_idx+1);
+    thread_pin_to_cpu(rx->thread_idx+1);
 
     register_thread_initialized();
 
@@ -637,7 +636,7 @@ static void *rx_thread_worker(void *arg) {
                 continue;
 
             if (events[idx].events & EPOLLIN) {
-                MSF_RPC_LOG(DBG_INFO, "RX thread event happen fd(%d) idx(%d).\n", c->clifd, idx);
+                MSF_AGENT_LOG(DBG_INFO, "RX thread event happen fd(%d) idx(%d).", c->clifd, idx);
                 rx_thread_read_loop(c);
             } 
 
@@ -648,7 +647,7 @@ static void *rx_thread_worker(void *arg) {
         }
     }
 
-    MSF_RPC_LOG(DBG_INFO, "RX thread(%u) exit\n", rx->thread_idx);
+    MSF_AGENT_LOG(DBG_INFO, "RX thread(%u) exit.", rx->thread_idx);
 
     return NULL;
 }
@@ -665,7 +664,7 @@ static void * tx_thread_worker(void *arg) {
     snprintf(tx_name, sizeof(tx_name)-1, "rpc_tx_%d", tx->thread_idx+1);
     MSF_THREAD_NAME(tx_name);
 
-    thread_set_affinity(tx->thread_idx+1);
+    thread_pin_to_cpu(tx->thread_idx+1);
 
     register_thread_initialized();
 
@@ -673,7 +672,7 @@ static void * tx_thread_worker(void *arg) {
 
         sem_wait_i(&tx->sem, MSF_WAIT_FOREVER);
 
-        MSF_RPC_LOG(DBG_INFO, "TX thread try to get one cmd.\n");
+        MSF_AGENT_LOG(DBG_INFO, "TX thread try to get one cmd.");
 
         pthread_spin_lock(&tx->tx_cmd_lock);
         if (list_empty(&tx->tx_cmd_list)) {
@@ -686,16 +685,16 @@ static void * tx_thread_worker(void *arg) {
         pthread_spin_unlock(&tx->tx_cmd_lock);
 
         if (unlikely(!new_cmd)) {
-            MSF_RPC_LOG(DBG_ERROR, "Tx thread fail to pop one cmd.\n");
+            MSF_AGENT_LOG(DBG_ERROR, "Tx thread fail to pop one cmd.");
             continue;
         } else {
             list_del_init(&new_cmd->cmd_to_list);
-            MSF_RPC_LOG(DBG_INFO, "Tx thread pop one cmd successful.\n");
+            MSF_AGENT_LOG(DBG_INFO, "Tx thread pop one cmd successful.");
         }
 
         c = new_cmd->cmd_conn;
         if (unlikely(!c)) {
-            MSF_RPC_LOG(DBG_ERROR, "Cmd(%p) conn is invalid.\n", new_cmd);
+            MSF_AGENT_LOG(DBG_ERROR, "Cmd(%p) conn is invalid.", new_cmd);
             continue;
         }
 
@@ -708,7 +707,7 @@ static void * tx_thread_worker(void *arg) {
         init_msghdr(&c->desc.tx_msghdr, c->desc.tx_iov, c->desc.tx_iovcnt);
         rc = msf_sendmsg(c->clifd, &c->desc.tx_msghdr);
 
-        MSF_RPC_LOG(DBG_INFO, "Sendmsg fd(%d) ret(%d).\n", c->clifd, rc);
+        MSF_AGENT_LOG(DBG_INFO, "Sendmsg fd(%d) ret(%d).", c->clifd, rc);
 
         tx_handle_result(c, rc);
         if (io_write_done == c->desc.send_state) {
@@ -716,7 +715,7 @@ static void * tx_thread_worker(void *arg) {
         }
     }
 
-    MSF_RPC_LOG(DBG_INFO, "TX thread(%u) exit now.\n", tx->thread_idx);
+    MSF_AGENT_LOG(DBG_INFO, "TX thread(%u) exit now.", tx->thread_idx);
     return NULL;
 }
 
@@ -728,7 +727,7 @@ s32 rx_thread_init(void)
 
     srv->rx_threads = calloc(srv->max_thread, sizeof(struct rx_thread));
     if (!srv->rx_threads) {
-        MSF_RPC_LOG(DBG_INFO, "Can't allocate rx thread descriptors");
+        MSF_AGENT_LOG(DBG_ERROR, "Can't allocate rx thread descriptors");
         return -1;
     }
 
@@ -754,7 +753,7 @@ s32 tx_thread_init(void) {
 
     srv->tx_threads = calloc(srv->max_thread, sizeof(struct tx_thread));
     if (!srv->tx_threads) {
-        MSF_RPC_LOG(DBG_INFO, "Can't allocate tx thread descriptors.");
+        MSF_AGENT_LOG(DBG_INFO, "Can't allocate tx thread descriptors.");
         return -1;
     }
 
@@ -830,7 +829,7 @@ void thread_deinit(void) {
         sfree(srv->rx_threads);
     }
 
-    MSF_RPC_LOG(DBG_INFO, "RX thread exit sucessful.\n");
+    MSF_AGENT_LOG(DBG_INFO, "RX thread exit sucessful.");
 
     if (srv->tx_threads) {
         for (idx = 0; idx < srv->max_thread; idx++) {
@@ -840,14 +839,14 @@ void thread_deinit(void) {
         sfree(srv->tx_threads);
     }
 
-    MSF_RPC_LOG(DBG_INFO, "TX thread exit sucessful.\n");
+    MSF_AGENT_LOG(DBG_INFO, "TX thread exit sucessful.");
 
     sclose(srv->listen_ep_fd);
 
-    MSF_RPC_LOG(DBG_INFO, "Listen thread exit sucessful.\n");
+    MSF_AGENT_LOG(DBG_INFO, "Listen thread exit sucessful.");
 
     sem_destroy(&srv->mgt_sem);
 
-    MSF_RPC_LOG(DBG_INFO, "Mgt thread exit sucesful.\n");
+    MSF_AGENT_LOG(DBG_INFO, "Mgt thread exit sucesful.");
 }
 

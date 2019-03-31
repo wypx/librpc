@@ -84,7 +84,7 @@ void signal_init(void) {
     /* if we want to ensure our ability to dump core, don't chdir to / */
     if (srv->daemon) {
          if (daemonize(0, srv->verbose) < 0) {
-             MSF_RPC_LOG(DBG_ERROR, "Failed to daemon() in order to daemonize.\n");
+             MSF_AGENT_LOG(DBG_ERROR, "Failed to daemon() in order to daemonize.");
         }
     }
 };
@@ -95,31 +95,36 @@ s32 server_init(void) {
 
     param_init();
 
+    if (msf_os_init() < 0)
+        return -1;
+
+    MSF_AGENT_LOG(DBG_INFO, "Server os init successful.");
+
     if (config_init() < 0) goto exit;
 
-    MSF_RPC_LOG(DBG_INFO, "Server config init successful.\n");
+    MSF_AGENT_LOG(DBG_INFO, "Server config init successful.");
 
     save_pid(srv->pid_file);
 
     signal_init();
 
-    MSF_RPC_LOG(DBG_INFO, "Server signal init successful.\n");
+    MSF_AGENT_LOG(DBG_INFO, "Server signal init successful.");
 
     if (cmd_init() < 0) goto exit;
 
-    MSF_RPC_LOG(DBG_INFO, "Server cmd init successful.\n");
+    MSF_AGENT_LOG(DBG_INFO, "Server cmd init successful.");
 
     if (conn_init() < 0) goto exit;
 
-    MSF_RPC_LOG(DBG_INFO, "Server conn init successful.\n");
+    MSF_AGENT_LOG(DBG_INFO, "Server conn init successful.");
 
     if (thread_init() < 0) goto exit;
 
-    MSF_RPC_LOG(DBG_INFO, "Server thread init successful.\n");
+    MSF_AGENT_LOG(DBG_INFO, "Server thread init successful.");
 
     if (network_init() < 0) goto exit;
 
-    MSF_RPC_LOG(DBG_INFO, "Server network init successful.\n");
+    MSF_AGENT_LOG(DBG_INFO, "Server network init successful.");
 
     /* Give the sockets a moment to open. I know this is dumb, but the error
      * is only an advisory.
@@ -128,8 +133,8 @@ s32 server_init(void) {
 
     return 0;
 exit:
-	server_deinit();
-	return -1;
+    server_deinit();
+    return -1;
 }
 
 void server_deinit(void) {

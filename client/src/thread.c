@@ -24,7 +24,7 @@ extern struct cmd* cmd_pop_tx(void);
 extern struct cmd* cmd_pop_ack(u32 seq);
 
 void conn_free(struct conn *c) {
-    drain_fd(c->fd, 256);
+    msf_drain_fd(c->fd, 256);
     sclose(c->fd);
 }
 
@@ -571,6 +571,44 @@ void * tx_thread_worker(void *lparam) {
     return NULL;
 }
 
+s32 timer_init(void) {
+
+#if 0
+    event_assign(&rpc->time_event, rpc->recv_base, -1, EV_PERSIST, 
+    	client_timer, (void*)&rpc->time_event);
+
+    struct timeval tv; 
+    evutil_timerclear(&tv);
+    tv.tv_sec = 600;
+    if (event_add(&rpc->time_event, &tv) != 0) {
+        fprintf(stderr, "add timer event error: %", 
+        strerror(errno));
+        return -1;
+    }
+
+    evutil_gettimeofday(&rpc->lasttime, NULL);
+#endif
+
+    return 0;
+}
+
+
+s32 timer_func(void *arg) {
+    
+    struct timeval newtime, difference;
+    gettimeofday(&newtime, NULL);
+    timersub(&newtime, &rpc->lasttime, &difference);
+    double  elapsed = difference.tv_sec + (difference.tv_usec / 1.0e6);
+
+    //client_reg_heart(RPC_HEARTBEAT);
+
+    MSF_RPC_LOG(DBG_INFO, "client_timer called at %d: %.3f seconds elapsed.",
+            (int)newtime.tv_sec, elapsed);
+    rpc->lasttime = newtime;
+
+    return -1;
+}
+
 s32 thread_init(void) {
 
     s32 rc = -1;
@@ -611,6 +649,8 @@ s32 thread_init(void) {
         MSF_RPC_LOG(DBG_ERROR, "RX thread create failed, ret(%d), errno(%d).", rc, errno);
         return -1;
     }
+
+    msf_timer_add(1, 2000, timer_func, rpc, CYCLE_TIMER, 100);
 
     rc = login_init();
     if (rc < 0) {

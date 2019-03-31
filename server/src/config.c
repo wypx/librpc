@@ -53,13 +53,13 @@ s32 config_init(void) {
 
     /* only error if file exists or using -f */
     if (access(srv->conf_file, F_OK) != 0) {
-        printf("Config file %s not exist.\n", srv->conf_file);
+        MSF_AGENT_LOG(DBG_ERROR, "Config file %s not exist.", srv->conf_file);
         return -1;
     }
 
     memset(buffer, 0, sizeof(buffer));
 
-    printf("Reading config from file %s.\n", srv->conf_file);
+    MSF_AGENT_LOG(DBG_INFO, "Reading config from file %s.", srv->conf_file);
 
     if (!(hfile = fopen(srv->conf_file, "r")))
         return -1;
@@ -85,7 +85,7 @@ s32 config_init(void) {
         if(name[0] == '#' || name[0] == '\0') continue;
 
         if (!(equals = strchr(name, '='))) {
-            fprintf(stderr, "Parsing error file %s line %d : %s\n",
+            MSF_AGENT_LOG(DBG_ERROR, "Parsing error file %s line %d : %s.",
                     srv->conf_file, linenum, name);
             continue;
         }
@@ -106,19 +106,19 @@ s32 config_init(void) {
 
             if (0 == strcmp(name, optionids[i].config_name)) {
                 id = optionids[i].config_id;
-                printf("%2d %2d %s %s\n", i, optionids[i].config_id, name, optionids[i].config_name); 
+                MSF_AGENT_LOG(DBG_INFO, "%2d %2d %s %s.", i, optionids[i].config_id, name, optionids[i].config_name); 
                 break;
             }
         }
 
         if (id == config_invalid) {
-                fprintf(stderr, "Parsing error file %s line %d : %s=%s\n",
+                MSF_AGENT_LOG(DBG_ERROR, "Parsing error file %s line %d : %s=%s.",
                         srv->conf_file, linenum, name, value);
             } else {
                 srv->config_num++;
                 t = (s8*)MSF_RENEW(srv->config_array, struct config_option, srv->config_num);
                 if (!t) {
-                    fprintf(stderr, "Memory allocation error: %s=%s\n", name, value);
+                    MSF_AGENT_LOG(DBG_ERROR, "Memory allocation error: %s=%s.", name, value);
                     srv->config_num--;
                     continue;
             }
