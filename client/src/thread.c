@@ -52,11 +52,11 @@ void init_msghdr(struct msghdr *msg, struct iovec *iov, u32 iovlen) {
 void rx_handle_result(struct conn *c, s32 rc) {
 
     if (unlikely(0 == rc)) {
-        MSF_RPC_LOG(DBG_INFO, "Conn close by peer fd(%d) ret(%d) errno(%d).", c->fd, rc, errno);
+        MSF_RPC_LOG(DBG_ERROR, "Conn close by peer fd(%d) ret(%d) errno(%d).", c->fd, rc, errno);
         conn_free(c);
         c->desc.recv_state = io_close;
     } else if (rc < 0) {
-        MSF_RPC_LOG(DBG_INFO, "Conn recv error, fd(%d) ret(%d) errno(%d).", c->fd, rc, errno);
+        MSF_RPC_LOG(DBG_ERROR, "Conn recv error, fd(%d) ret(%d) errno(%d).", c->fd, rc, errno);
         if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
             c->desc.recv_state = io_read_half;
             return;
@@ -184,6 +184,13 @@ s32 rx_thread_handle_req_direct(struct conn *c) {
 
 s32 rx_thread_handle_req_data(struct conn *c, struct cmd *new_cmd) {
 
+    struct basic_head *bhs = NULL;
+
+    bhs = &c->bhs;
+
+    if (rpc->req_scb) {
+        rpc->req_scb(new_cmd->buffer, bhs->datalen, bhs->cmd);
+    }
     return 0;
 }
 
@@ -347,21 +354,21 @@ static void rx_thread_handle_bhs(struct conn *c) {
 
     bhs = &c->bhs;
     
-    MSF_RPC_LOG(DBG_INFO, "###################################");
+    MSF_RPC_LOG(DBG_DEBUG, "###################################");
     MSF_RPC_LOG(DBG_INFO, "bhs:");
     MSF_RPC_LOG(DBG_INFO, "bhs version:0x%x",    bhs->version);
     MSF_RPC_LOG(DBG_INFO, "bhs magic:0x%x",      bhs->magic);
     MSF_RPC_LOG(DBG_INFO, "bhs srcid:0x%x",      bhs->srcid);
     MSF_RPC_LOG(DBG_INFO, "bhs dstid:0x%x",      bhs->dstid);
-    MSF_RPC_LOG(DBG_INFO, "bhs opcode:%u",       bhs->opcode);
-    MSF_RPC_LOG(DBG_INFO, "bhs cmd:%u",          bhs->cmd);
-    MSF_RPC_LOG(DBG_INFO, "bhs seq:%u",          bhs->seq);
+    MSF_RPC_LOG(DBG_DEBUG, "bhs opcode:%u",       bhs->opcode);
+    MSF_RPC_LOG(DBG_DEBUG, "bhs cmd:0x%x",          bhs->cmd);
+    MSF_RPC_LOG(DBG_DEBUG, "bhs seq:%u",          bhs->seq);
     MSF_RPC_LOG(DBG_INFO, "bhs errcode:%u",      bhs->errcode);
-    MSF_RPC_LOG(DBG_INFO, "bhs datalen:%u",      bhs->datalen);
-    MSF_RPC_LOG(DBG_INFO, "bhs restlen:%u",      bhs->restlen);
+    MSF_RPC_LOG(DBG_DEBUG, "bhs datalen:%u",      bhs->datalen);
+    MSF_RPC_LOG(DBG_DEBUG, "bhs restlen:%u",      bhs->restlen);
     MSF_RPC_LOG(DBG_INFO, "bhs checksum:%u",     bhs->checksum);
     MSF_RPC_LOG(DBG_INFO, "bhs timeout:%u",      bhs->timeout);
-    MSF_RPC_LOG(DBG_INFO, "###################################");
+    MSF_RPC_LOG(DBG_DEBUG, "###################################");
 
     if (unlikely(RPC_VERSION != bhs->version || RPC_MAGIC != bhs->magic)) {
         MSF_RPC_LOG(DBG_ERROR, "Notify login rsp code(%d).", bhs->errcode);
@@ -381,7 +388,7 @@ static void rx_thread_handle_bhs(struct conn *c) {
         c->desc.recv_stage = stage_recv_next;
     } else {
         c->desc.recv_stage = stage_recv_data;
-        MSF_RPC_LOG(DBG_INFO, "Need to recv extra payload.");
+        MSF_RPC_LOG(DBG_DEBUG, "Need to recv extra payload.");
 
         if (bhs->opcode == RPC_ACK && bhs->timeout != MSF_NO_WAIT) {
             /* Find cmd in ack list by uni syn*/ 
@@ -410,6 +417,7 @@ static void rx_thread_read_bhs(struct conn *c) {
     s32 rc = -1;
 
     if (unlikely(io_close == c->desc.recv_state)) {
+        MSF_RPC_LOG(DBG_ERROR, "Conn is closed, don't recv anymore.");
         return;
     } else {
         rx_thread_map_bhs(c);
@@ -431,6 +439,7 @@ static void rx_thread_read_data(struct conn *c) {
     struct basic_head *bhs = NULL;
 
     if (unlikely(io_close == c->desc.recv_state)) {
+        MSF_RPC_LOG(DBG_DEBUG, "Conn is closed, don't recv anymore.");
         return;
     } else {
         rx_thread_map_data(c);
@@ -438,20 +447,20 @@ static void rx_thread_read_data(struct conn *c) {
 
     bhs = &c->bhs;
 
-    MSF_RPC_LOG(DBG_INFO, "Read data len is %u.", bhs->datalen);
+    MSF_RPC_LOG(DBG_DEBUG, "Read data len is %u.", bhs->datalen);
 
     rc = msf_recvmsg(c->fd, &c->desc.rx_msghdr);
 
-    MSF_RPC_LOG(DBG_INFO, "Recv data len is %u.", rc);
+    MSF_RPC_LOG(DBG_DEBUG, "Recv data len is %u.", rc);
 
     rx_handle_result(c, rc);
 
     if (io_read_done == c->desc.recv_state) {
         if (RPC_REQ == bhs->opcode) {
-            MSF_RPC_LOG(DBG_INFO, "Direct handle req with data.");
+            MSF_RPC_LOG(DBG_DEBUG, "Direct handle req with data.");
             rx_thread_handle_req_data(c, c->curr_recv_cmd);
         } else if (RPC_ACK == bhs->opcode) {
-            MSF_RPC_LOG(DBG_INFO, "Direct handle ack with data.");
+            MSF_RPC_LOG(DBG_DEBUG, "Direct handle ack with data.");
             if (bhs->timeout != MSF_NO_WAIT)
                 rx_thread_handle_ack_data(c, c->curr_recv_cmd);
             else
@@ -502,7 +511,7 @@ void * rx_thread_worker(void *lparam) {
 
     struct client *rpc = (struct client*)lparam;
 
-    while (!rpc->flags) {
+    while (!rpc->stop_flag) {
         msf_event_base_loop(rpc->ev_rx_base);
     }
     MSF_RPC_LOG(DBG_ERROR, "RX thread will exit now.");
@@ -520,19 +529,19 @@ static void tx_thread_callback(void *arg) {
 
     tx_cmd = cmd_pop_tx();
     if (unlikely(!tx_cmd)) {
-        MSF_RPC_LOG(DBG_INFO, "TX fail to pop one write buffer item.");
+        MSF_RPC_LOG(DBG_ERROR, "TX fail to pop one write buffer item.");
         return;
     }
 
     MSF_RPC_LOG(DBG_INFO, "TX item ref cout(%d).", tx_cmd->ref_cnt);
 
     if (refcount_decr(&tx_cmd->ref_cnt) <= 0) {
-        MSF_RPC_LOG(DBG_INFO, "refcount_decr: %d.", tx_cmd->ref_cnt);
+        MSF_RPC_LOG(DBG_ERROR, "refcount_decr: %d.", tx_cmd->ref_cnt);
         cmd_free(tx_cmd);
         return;
     }
 
-    MSF_RPC_LOG(DBG_INFO, "TX item ref count(%d) req used_len(%d).", 
+    MSF_RPC_LOG(DBG_ERROR, "TX item ref count(%d) req used_len(%d).", 
         tx_cmd->ref_cnt, tx_cmd->used_len);
 
     bhs = (struct basic_head*)&tx_cmd->bhs;
@@ -553,10 +562,10 @@ static void tx_thread_callback(void *arg) {
     MSF_RPC_LOG(DBG_INFO, "TX sendmsg fd(%d) ret(%d)(%d).", rpc->cli_conn.fd, rc, tx_cmd->used_len);
 
     if (MSF_NO_WAIT == bhs->timeout || RPC_ACK == bhs->opcode) {
-        MSF_RPC_LOG(DBG_INFO, "No need recv ack, free node, del key.");
+        MSF_RPC_LOG(DBG_DEBUG, "No need recv ack, free node, del key.");
         cmd_free(tx_cmd);
     } else {
-        MSF_RPC_LOG(DBG_INFO, "Need recv ack, push into ack_queue.");
+        MSF_RPC_LOG(DBG_DEBUG, "Need recv ack, push into ack_queue.");
         cmd_push_ack(tx_cmd);
     }
 }
@@ -565,7 +574,7 @@ void * tx_thread_worker(void *lparam) {
 
     struct client *rpc = (struct client*)lparam;
 
-    while (!rpc->flags) {
+    while (!rpc->stop_flag) {
         msf_event_base_loop(rpc->ev_tx_base);
     }
     return NULL;
@@ -662,4 +671,18 @@ s32 thread_init(void) {
 
     return 0;
 }
+
+void thread_deinit(void) {
+
+    rpc->stop_flag = true;
+    msf_event_del(rpc->ev_tx_base, rpc->ev_tx);
+    msf_event_del(rpc->ev_rx_base, rpc->ev_rx);
+    msf_event_destroy(rpc->ev_tx);
+    msf_event_destroy(rpc->ev_rx);
+    sclose(rpc->ev_conn.fd);
+    sclose(rpc->cli_conn.fd);
+    msf_event_base_destroy(rpc->ev_rx_base);
+    msf_event_base_destroy(rpc->ev_tx_base);
+}
+
 

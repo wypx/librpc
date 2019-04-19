@@ -25,13 +25,28 @@ struct dlna_param_t    {
 
 s32 upnp_req_scb(s8 *data, u32 len, u32 cmd) {
 
-    MSF_UPNP_LOG(DBG_INFO, "UPnP req service callback data(%p) len(%d) cmd(%d).", data, len, cmd);
+    MSF_UPNP_LOG(DBG_DEBUG, "UPnP req service callback data(%p) len(%d) cmd(0x%x).", data, len, cmd);
     
     if (UPNP_GET_PARAM == cmd) {
         if (data && len == sizeof(struct upnp_param_t)) 
             memcpy(data, &upnp, sizeof(upnp));
         else
-             MSF_UPNP_LOG(DBG_INFO, "Callback param is error.");
+             MSF_UPNP_LOG(DBG_ERROR, "Callback param is error.");
+
+        struct upnp_param_t *up = &upnp;
+        MSF_UPNP_LOG(DBG_DEBUG, "2UPnP friend name(%s).", up->friend_name);
+        MSF_UPNP_LOG(DBG_DEBUG, "2UPnP nat enable(%d).", up->upnp_nat);
+        MSF_UPNP_LOG(DBG_DEBUG, "2UPnP discovery enable(%d).", up->upnp_discovery);
+    } else if (UPNP_SET_PARAM == cmd) {
+        if (data && len == sizeof(struct upnp_param_t)) 
+            memcpy(&upnp, data, sizeof(upnp));
+        else
+            MSF_UPNP_LOG(DBG_ERROR, "Callback param is error.");
+        
+        struct upnp_param_t *up = data;
+        MSF_UPNP_LOG(DBG_DEBUG, "1UPnP friend name(%s).", up->friend_name);
+        MSF_UPNP_LOG(DBG_DEBUG, "1UPnP nat enable(%d).", up->upnp_nat);
+        MSF_UPNP_LOG(DBG_DEBUG, "1UPnP discovery enable(%d).", up->upnp_discovery);
     } else if (RPC_DEBUG_ON == cmd) {
 
     } else if (RPC_DEBUG_OFF == cmd) {
@@ -49,7 +64,7 @@ s32 upnp_ack_scb(s8 *data, u32 len, u32 cmd) {
 }
 
 #define server_host "192.168.58.132"
-#define server_port "9999"
+#define SERVER_PORT "9999"
 
 s32 main () {
 
@@ -59,7 +74,7 @@ s32 main () {
     upnp.upnp_nat = 1;
     upnp.upnp_discovery = 2;
 
-    rc = client_init(MSF_MOD_UPNP, local_host_v4, server_port, upnp_req_scb, upnp_ack_scb);
+    rc = client_init(MSF_MOD_UPNP, LOCAL_HOST_V4, SERVER_PORT, upnp_req_scb, upnp_ack_scb);
     if (rc < 0) return -1;
     
     while (1) 

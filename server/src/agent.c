@@ -23,27 +23,22 @@ static  __attribute__((constructor(102))) void before_test2()
     MSF_AGENT_LOG(DBG_INFO, "before2\n");
 }
 
-
-/* Õâ¸ö±íÊ¾Ò»¸ö·½·¨µÄ·µ»ØÖµÖ»ÓÉ²ÎÊý¾ö¶¨, Èç¹û²ÎÊý²»±äµÄ»°,
-	¾Í²»ÔÙµ÷ÓÃ´Ëº¯Êý£¬Ö±½Ó·µ»ØÖµ.¾­¹ýÎÒµÄ³¢ÊÔ·¢ÏÖ»¹ÊÇµ÷ÓÃÁË,
-	ºóÓÖ¾­²é×ÊÁÏ·¢ÏÖÒª¸øgcc¼ÓÒ»¸ö-OµÄ²ÎÊý²Å¿ÉÒÔ.
-	ÊÇ¶Ôº¯Êýµ÷ÓÃµÄÒ»ÖÖÓÅ»¯*/
+/* è¿™ä¸ªè¡¨ç¤ºä¸€ä¸ªæ–¹æ³•çš„è¿”å›žå€¼åªç”±å‚æ•°å†³å®š, å¦‚æžœå‚æ•°ä¸å˜çš„è¯,
+    å°±ä¸å†è°ƒç”¨æ­¤å‡½æ•°ï¼Œç›´æŽ¥è¿”å›žå€¼.ç»è¿‡æˆ‘çš„å°è¯•å‘çŽ°è¿˜æ˜¯è°ƒç”¨äº†,
+    åŽåˆç»æŸ¥èµ„æ–™å‘çŽ°è¦ç»™gccåŠ ä¸€ä¸ª-Oçš„å‚æ•°æ‰å¯ä»¥.
+    æ˜¯å¯¹å‡½æ•°è°ƒç”¨çš„ä¸€ç§ä¼˜åŒ–*/
 __attribute__((const)) s32 test2()
 {
     return 5;
 }
 
-/* ±íÊ¾º¯ÊýµÄ·µ»ØÖµ±ØÐë±»¼ì²é»òÊ¹ÓÃ,·ñÔò»á¾¯¸æ*/
+/* è¡¨ç¤ºå‡½æ•°çš„è¿”å›žå€¼å¿…é¡»è¢«æ£€æŸ¥æˆ–ä½¿ç”¨,å¦åˆ™ä¼šè­¦å‘Š*/
 __attribute__((unused)) s32 test3()
 {
-	return 5;
+    return 5;
 }
 
-
-
-/* Õâ¶Î´úÂëÄÜ¹»±£Ö¤´úÂëÊÇÄÚÁªµÄ,ÒòÎªÄãÈç¹ûÖ»¶¨ÒåÄÚÁªµÄ»°,
-	±àÒëÆ÷²¢²»Ò»¶¨»áÒÔÄÚÁªµÄ·½Ê½µ÷ÓÃ,
-	Èç¹û´úÂëÌ«¶àÄã¾ÍËãÓÃÁËÄÚÁªÒ²²»Ò»¶¨»áÄÚÁªÓÃÁËÕâ¸öµÄ»°»áÇ¿ÖÆÄÚÁª*/
+/* Force compiler to use inline*/
 static inline __attribute__((always_inline)) void test5()
 {
 

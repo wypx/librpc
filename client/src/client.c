@@ -25,7 +25,7 @@ extern void cmd_push_ack(struct cmd *ack_cmd);;
 extern struct cmd* cmd_pop_tx(void);
 extern struct cmd* cmd_pop_ack(void);
 extern s32 thread_init(void);
-
+extern void thread_deinit(void);
 s32 signal_init(void) {
     signal_handler(SIGHUP,	SIG_IGN);
     signal_handler(SIGTERM, SIG_IGN);
@@ -52,14 +52,14 @@ s32 network_init(void) {
     evc->desc.recv_stage = stage_recv_bhs;
     evc->desc.send_stage  = stage_send_bhs;
 
-    if (0 == msf_strncmp(rpc->server_host, local_host_v4, strlen(local_host_v4))
-     || 0 == msf_strncmp(rpc->server_host, local_host_v6, strlen(local_host_v6))) {
+    if (0 == msf_strncmp(rpc->server_host, LOCAL_HOST_V4, strlen(LOCAL_HOST_V4))
+     || 0 == msf_strncmp(rpc->server_host, LOCAL_HOST_V4, strlen(LOCAL_HOST_V6))) {
         if (rpc->cid == RPC_UPNP_ID)
-            clic->fd = msf_connect_to_unix_socket(MSF_RPC_UNIX_UPNP, MSF_RPC_UNIX_SERVER);
+            clic->fd = msf_connect_unix_socket(MSF_RPC_UNIX_UPNP, MSF_RPC_UNIX_SERVER);
         else
-            clic->fd = msf_connect_to_unix_socket(MSF_RPC_UNIX_DLNA, MSF_RPC_UNIX_SERVER);
+            clic->fd = msf_connect_unix_socket(MSF_RPC_UNIX_DLNA, MSF_RPC_UNIX_SERVER);
     } else {
-        clic->fd = msf_connect_to_host(rpc->server_host, rpc->server_port);
+        clic->fd = msf_connect_host(rpc->server_host, rpc->server_port);
     }
 
     if (clic->fd < 0) {
@@ -70,7 +70,6 @@ s32 network_init(void) {
     if (evc->fd < 0) {
         return -1;
     }
-
 
     MSF_RPC_LOG(DBG_INFO,  "Network init client fd(%u)", clic->fd);
     MSF_RPC_LOG(DBG_INFO,  "Network init event fd(%u)", evc->fd);
@@ -138,20 +137,9 @@ error:
 s32 client_deinit(void) {
 
     msf_timer_destroy();
-
+    thread_deinit();
     cmd_deinit();
-
-    msf_drain_fd(rpc->ev_conn.fd, 256);
-    msf_drain_fd(rpc->cli_conn.fd, 256);
-
-    sclose(rpc->ev_conn.fd);
-    sclose(rpc->cli_conn.fd);
-
-    msf_event_base_loop_break(rpc->ev_rx_base);
-    msf_event_base_loop_break(rpc->ev_tx_base);
-
     rpc->state = rpc_uninit;
-
     return 0;
 }
 
@@ -181,7 +169,8 @@ s32 client_service(struct basic_pdu *pdu) {
     bhs->srcid =  rpc->cid;
     bhs->dstid =  pdu->dstid;
     bhs->cmd =  pdu->cmd;
-    bhs->seq = time(NULL);
+    msf_atomic_fetch_add(&rpc->msg_seq, 1);
+    bhs->seq = rpc->msg_seq;
     bhs->checksum = 0;
     bhs->timeout  = pdu->timeout;
 
@@ -196,6 +185,7 @@ s32 client_service(struct basic_pdu *pdu) {
     cmd_push_tx(new_cmd);
 
     if (msf_eventfd_notify(rpc->ev_conn.fd) < 0) {
+          MSF_RPC_LOG(DBG_ERROR, "Notofy tx thread faild.");
         cmd_free(new_cmd);
         return -1;
     }

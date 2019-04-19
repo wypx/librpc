@@ -331,7 +331,7 @@ static void rx_thread_read_data(struct conn *c) {
             if (RPC_REQ == bhs->opcode) {
                 if (RPC_LOGIN == bhs->cmd) {
                     struct login_pdu *login = (struct login_pdu *)new_cmd->cmd_buff;
-                    MSF_AGENT_LOG(DBG_DEBUG, "Login name is (%s) chap(%u).", login->name, login->chap);
+                    MSF_AGENT_LOG(DBG_DEBUG, "Login peer name(%s) chap(%u).", login->name, login->chap);
                     memcpy(c->name, login->name, max_conn_name-1);
                     MSF_SWAP(&bhs->srcid, &bhs->dstid);
                     bhs->datalen = bhs->restlen;

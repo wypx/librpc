@@ -19,7 +19,7 @@
 #include <msf_network.h>
 #include <msf_cpu.h>
 #include <msf_os.h>
-#include <binary.h>
+#include <protocol.h>
 #include <dict.h>
 
 #include <sys/sysinfo.h>
@@ -44,10 +44,10 @@
 #define max_conn_cmd_num    64
 
 
-#define	default_config_path     "/mnt/hgfs/tomato/packet/config/msf_rpc_srv.conf"
-#define	default_pid_path        "/mnt/hgfs/tomato/packet/config/msf_rpc_srv.pid"
+#define default_config_path     "/media/psf/tomato/packet/config/msf_rpc_srv.conf"
+#define default_pid_path        "/media/psf/tomato/packet/config/msf_rpc_srv.pid"
 #define default_unix_path       "/var/msf_rpc_srv.sock"
-#define	default_log_path        "/mnt/hgfs/tomato/packet/logger/msf_rpc_srv.log"
+#define default_log_path        "/media/psf/tomato/packet/logger/msf_rpc_srv.log"
 
 
 /* enum of index available in the rpc_agent.conf */

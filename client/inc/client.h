@@ -10,26 +10,25 @@
 * and/or fitness for purpose.
 *
 **************************************************************************/
-
+#include <msf_atomic.h>
 #include <msf_event.h>
-#include <binary.h>
+#include <protocol.h>
 
 //http://itindex.net/detail/53322-rpc-%E6%A1%86%E6%9E%B6-bangerlee
-//超时与重试 -- 考虑负载
 /**
- * Client屏蔽策略: 漏桶屏蔽
- * Client对每个后端Server(IP/PORT)维护一个评分
- * 请求失败(失败或者超时), 分数减一, 到分数为0时,
- * 将IP/PORT和时间戳信息记录, 请求消息时候, 跳过它们,
- * 在一段时间后, 再放开限制.
- *
- * 可以把server异常信息上报到中心管理节点(zookeeper),
- * 新增节点的时候, 从中心节点拉取屏蔽信息, 实现集群内信息共享.
+ * load balance: retry for timeout
+ * client maintain a star mark for server(ip and port)
+ * when request fail or timeout, dec the star by one,
+ * since the star eaual as zero, add the ip, port, time
+ * into the local info, realse the restict some times later
+ * 
+ * server info can upload to zookeeper, then share in cluster
+ * when new a server node, can distribute this to clients.
  */
 
 #define HAVE_GCC_ATOMICS        1
 #define MSF_HAVE_EVENTFD        1
-#define RPC_LOG_FILE_PATH       "%s.log"
+#define RPC_LOG_FILE_PATH       "logger/%s.log"
 
 typedef s32 (*srvcb)(s8 *data, u32 len, u32 cmd);
 
@@ -141,15 +140,16 @@ struct cmd {
     struct conn *cmd_conn;
     u32     cmd_state;
 
-    u32     buff_idx;
+    srvcb   callback;   /*callback called in thread pool*/
     void    *buffer;
-    u32     total_len;  /*the total length of buffer*/
-    u32     used_len;   /*used length of buffer*/
-
-    /* https://blog.csdn.net/ubuntu64fan/article/details/17629509 */
+     /* https://blog.csdn.net/ubuntu64fan/article/details/17629509 */
     /* ref_cnt aim to solve wildpointer and object, pointer retain */
     u32     ref_cnt;
-    srvcb   callback;   /*callback called in thread pool*/
+    u32     used_len;   /*used length of buffer*/
+
+    /*Don't to memset vars below */
+    u32     total_len;  /*the total length of buffer*/
+    u32     buff_idx;
 } __attribute__((__packed__));
 
 
@@ -171,7 +171,7 @@ struct cluster_node {
 
 
 struct client {
-    u32     flags;
+    u32     stop_flag;
     u32     state;
     s8      name[32];
     u32     cid;
@@ -182,6 +182,7 @@ struct client {
     s8      server_addr[32];
     s8      server_port[32];
 
+    msf_atomic_t msg_seq;
     u32     chap;
     //u32   auth_state;
     u32     auth_method;

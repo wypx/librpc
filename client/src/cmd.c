@@ -67,6 +67,8 @@ struct cmd *cmd_new_prealloc(u32 idx) {
     /* Allocate a bunch of items at once to reduce fragmentation */
     new_cmd = MSF_NEW(struct cmd, ITEM_PER_ALLOC);
     if (NULL == new_cmd) {
+        MSF_RPC_LOG(DBG_DEBUG, 
+            "Failed to prealloc cmd item, errno(%d).", errno);
         pthread_spin_unlock(&rpc->free_cmd_lock[idx]);
         return NULL;
     }
@@ -77,6 +79,9 @@ struct cmd *cmd_new_prealloc(u32 idx) {
         if (0 != g_cmd_len[idx]) {
             tmp_cmd->buffer = MSF_NEW(s8, g_cmd_len[idx]);
             if (NULL == tmp_cmd->buffer) {
+                MSF_RPC_LOG(DBG_DEBUG,
+                    "Failed to prealloc cmd(%u) buffer, errno(%d).", 
+                    idx, errno);
                 for (j = 0; j < (i+1); j++) {
                     tmp_cmd = &new_cmd[j];
                     sfree(tmp_cmd->buffer);
@@ -109,11 +114,13 @@ struct cmd *cmd_new_prealloc(u32 idx) {
 void cmd_new_default(struct cmd *new_cmd) {
 
     if (unlikely(!new_cmd)) {
+        MSF_RPC_LOG(DBG_DEBUG, "Failed to new one cmd.");
         return;
     }
-    
+    MSF_RPC_LOG(DBG_DEBUG, "Cmd total_len(%u).", new_cmd->total_len);
     msf_memzero(new_cmd->buffer, new_cmd->total_len);
     msf_memzero(&new_cmd->bhs, sizeof(struct basic_head));
+    new_cmd->ref_cnt = 0;
     refcount_incr(&new_cmd->ref_cnt);
     new_cmd->used_len = 0;
     INIT_LIST_HEAD(&(new_cmd->cmd_to_list));
@@ -122,7 +129,7 @@ void cmd_new_default(struct cmd *new_cmd) {
 
 /*
  * Returns a fresh connection queue item.
- * pre malloc 64 struct buffer_item*, first get one of them, 
+ * pre malloc 64 struct cmd *, first get one of them, 
  * if not enough, new malloc one item
  * this way looks like memory pool.
  */
@@ -141,7 +148,7 @@ struct cmd *cmd_new(s32 data_len) {
 
     if (list_empty(&rpc->free_cmd_list[idx])) {
 
-        MSF_RPC_LOG(DBG_INFO, "Need to new cmd item.");
+        MSF_RPC_LOG(DBG_DEBUG, "Need to new cmd item.");
 
         new_cmd = cmd_new_prealloc(idx);
         if (unlikely(!new_cmd)) {
@@ -289,7 +296,8 @@ void cmd_deinit(void) {
         if (list_empty(&rpc->free_cmd_list[buf_idx])) {
             continue;
         } else {
-            list_for_each_entry_safe(del_cmd, next_cmd, &rpc->free_cmd_list[buf_idx], cmd_to_list) {
+            list_for_each_entry_safe(del_cmd, next_cmd, 
+                    &rpc->free_cmd_list[buf_idx], cmd_to_list) {
                 if (del_cmd) {
                     list_del_init(&del_cmd->cmd_to_list);
                     sfree(del_cmd->buffer);

@@ -11,12 +11,12 @@
 *
 **************************************************************************/
 
-#define __DEBUG__				1
+#define __DEBUG__               1
 
-#define HAVE_GETIFADDRS 		1
+#define HAVE_GETIFADDRS         1
 
-#define HAVE_TCP_FASTOPEN 		1
-#define HAVE_DEFERRED_ACCEPT 	1
-#define HAVE_KEEPALIVE_TUNABLE 	1
+#define HAVE_TCP_FASTOPEN       1
+#define HAVE_DEFERRED_ACCEPT    1
+#define HAVE_KEEPALIVE_TUNABLE  1
 
 

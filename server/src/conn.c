@@ -74,10 +74,11 @@ s32 conn_init(void) {
     }
 
     /* next_fd used to count */
-    close(next_fd);
+    sclose(next_fd);
 
     if (!(srv->conns = calloc(srv->max_conns, sizeof(struct conn)))) {
-        MSF_AGENT_LOG(DBG_ERROR, "Failed to allocate connection structures.");
+        MSF_AGENT_LOG(DBG_ERROR, 
+            "Failed to allocate connection structures.");
         return -1;
     }
 

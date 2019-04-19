@@ -171,7 +171,7 @@ struct basic_head {
     u32 restlen;
 
     u32 checksum;   /* Message Header checksum */
-    u32 timeout;    /* Timeout  wait for data */
+    u32 timeout;    /* Timeout wait for data */
 
     s8  reserved[8];
 } __attribute__((__packed__));
