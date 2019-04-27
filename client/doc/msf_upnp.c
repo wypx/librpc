@@ -22,35 +22,37 @@ struct dlna_param_t    {
     s8  friendly_name[32];
 } __attribute__((__packed__));
 
+void upnp_debug_info(struct upnp_param_t *up) {
+    MSF_UPNP_LOG(DBG_DEBUG, "UPnP friend name(%s).", up->friend_name);
+    MSF_UPNP_LOG(DBG_DEBUG, "UPnP nat enable(%d).", up->upnp_nat);
+    MSF_UPNP_LOG(DBG_DEBUG, "UPnP discovery enable(%d).", up->upnp_discovery);
+}
 
 s32 upnp_req_scb(s8 *data, u32 len, u32 cmd) {
 
     MSF_UPNP_LOG(DBG_DEBUG, "UPnP req service callback data(%p) len(%d) cmd(0x%x).", data, len, cmd);
-    
-    if (UPNP_GET_PARAM == cmd) {
-        if (data && len == sizeof(struct upnp_param_t)) 
-            memcpy(data, &upnp, sizeof(upnp));
-        else
-             MSF_UPNP_LOG(DBG_ERROR, "Callback param is error.");
 
-        struct upnp_param_t *up = &upnp;
-        MSF_UPNP_LOG(DBG_DEBUG, "2UPnP friend name(%s).", up->friend_name);
-        MSF_UPNP_LOG(DBG_DEBUG, "2UPnP nat enable(%d).", up->upnp_nat);
-        MSF_UPNP_LOG(DBG_DEBUG, "2UPnP discovery enable(%d).", up->upnp_discovery);
-    } else if (UPNP_SET_PARAM == cmd) {
-        if (data && len == sizeof(struct upnp_param_t)) 
-            memcpy(&upnp, data, sizeof(upnp));
-        else
-            MSF_UPNP_LOG(DBG_ERROR, "Callback param is error.");
-        
-        struct upnp_param_t *up = data;
-        MSF_UPNP_LOG(DBG_DEBUG, "1UPnP friend name(%s).", up->friend_name);
-        MSF_UPNP_LOG(DBG_DEBUG, "1UPnP nat enable(%d).", up->upnp_nat);
-        MSF_UPNP_LOG(DBG_DEBUG, "1UPnP discovery enable(%d).", up->upnp_discovery);
-    } else if (RPC_DEBUG_ON == cmd) {
-
-    } else if (RPC_DEBUG_OFF == cmd) {
-
+    switch (cmd) {
+        case UPNP_GET_PARAM:
+            if (data && len == sizeof(struct upnp_param_t)) {
+                MSF_UPNP_LOG(DBG_DEBUG, "@@@@UPnP set.");
+                memcpy(data, &upnp, sizeof(upnp));
+                upnp_debug_info(&upnp);
+            }
+            break;
+        case UPNP_SET_PARAM:
+            if (data && len == sizeof(struct upnp_param_t)) {
+                MSF_UPNP_LOG(DBG_DEBUG, "@@@@UPnP get.");
+                memcpy(&upnp, data, sizeof(upnp));
+                upnp_debug_info(&upnp);
+            }
+            break;
+        case RPC_DEBUG_ON:
+        case RPC_DEBUG_OFF:
+            break;
+        default:
+            MSF_UPNP_LOG(DBG_ERROR, "Upnp unknown cmd(%u).", cmd);
+            break;
     }
     return 0;
 }

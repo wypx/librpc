@@ -37,20 +37,27 @@ s32 dlna_req_scb(s8 *data, u32 len, u32 cmd) {
 
 struct upnp_param_t upnp;
 
+void upnp_debug_info(struct upnp_param_t *up) {
+    MSF_DLNA_LOG(DBG_DEBUG, "UPnP friend name(%s).", up->friend_name);
+    MSF_DLNA_LOG(DBG_DEBUG, "UPnP nat enable(%d).", up->upnp_nat);
+    MSF_DLNA_LOG(DBG_DEBUG, "UPnP discovery enable(%d).", up->upnp_discovery);
+}
+
 s32 dlna_ack_scb(s8 *data, u32 len, u32 cmd) {
 
     MSF_DLNA_LOG(DBG_DEBUG, "DLNA ack service callback data(%p) len(%d) cmd(0x%x).",
                    data, len, cmd);
 
-    if (UPNP_GET_PARAM == cmd) {
-        if (data && len == sizeof(struct upnp_param_t)) {
-            msf_memzero(&upnp, sizeof(struct upnp_param_t ));
-            memcpy(&upnp, data, sizeof(struct upnp_param_t ));
-            MSF_DLNA_LOG(DBG_DEBUG, "UPnP friend name(%s).", upnp.friend_name);
-            MSF_DLNA_LOG(DBG_DEBUG, "UPnP nat enable(%d).", upnp.upnp_nat);
-            MSF_DLNA_LOG(DBG_DEBUG, "UPnP discovery enable(%d).", upnp.upnp_discovery);
-        }  else
-            MSF_DLNA_LOG(DBG_ERROR, "Callback param is error.");
+    switch (cmd) {
+      case UPNP_GET_PARAM:
+          if (data && len == sizeof(struct upnp_param_t)) {
+              memcpy(&upnp, data, sizeof(upnp));
+              upnp_debug_info(&upnp);
+          }
+          break;
+      default:
+          MSF_DLNA_LOG(DBG_ERROR, "Dlna unknown cmd(%u).", cmd);
+          break;
     }
 
     return 0;
@@ -115,10 +122,6 @@ s32 main () {
         MSF_DLNA_LOG(DBG_DEBUG, "UPnP nat enable(%d).", upnp.upnp_nat);
         MSF_DLNA_LOG(DBG_DEBUG, "UPnP discovery enable(%d).", upnp.upnp_discovery);
     }
-
-    pdu.timeout = MSF_NO_WAIT;
-    pdu.restload = NULL;
-    pdu.restlen = sizeof(struct upnp_param_t);
 
     while (1) {
 

@@ -26,6 +26,7 @@ extern struct cmd* cmd_pop_tx(void);
 extern struct cmd* cmd_pop_ack(void);
 extern s32 thread_init(void);
 extern void thread_deinit(void);
+
 s32 signal_init(void) {
     signal_handler(SIGHUP,	SIG_IGN);
     signal_handler(SIGTERM, SIG_IGN);
@@ -42,7 +43,7 @@ s32 network_init(void) {
     struct conn *evc = NULL;
 
     clic = &rpc->cli_conn;
-    evc = &rpc->ev_conn;
+    evc = &rpc->evt_conn;
 
     msf_memzero(&clic->desc, sizeof( struct conn_desc));
     
@@ -52,14 +53,14 @@ s32 network_init(void) {
     evc->desc.recv_stage = stage_recv_bhs;
     evc->desc.send_stage  = stage_send_bhs;
 
-    if (0 == msf_strncmp(rpc->server_host, LOCAL_HOST_V4, strlen(LOCAL_HOST_V4))
-     || 0 == msf_strncmp(rpc->server_host, LOCAL_HOST_V4, strlen(LOCAL_HOST_V6))) {
-        if (rpc->cid == RPC_UPNP_ID)
+    if (0 == msf_strncmp(rpc->srv_host, LOCAL_HOST_V4, strlen(LOCAL_HOST_V4))
+     || 0 == msf_strncmp(rpc->srv_host, LOCAL_HOST_V4, strlen(LOCAL_HOST_V6))) {
+        if (rpc->cli_conn.cid == RPC_UPNP_ID)
             clic->fd = msf_connect_unix_socket(MSF_RPC_UNIX_UPNP, MSF_RPC_UNIX_SERVER);
         else
             clic->fd = msf_connect_unix_socket(MSF_RPC_UNIX_DLNA, MSF_RPC_UNIX_SERVER);
     } else {
-        clic->fd = msf_connect_host(rpc->server_host, rpc->server_port);
+        clic->fd = msf_connect_host(rpc->srv_host, rpc->srv_port);
     }
 
     if (clic->fd < 0) {
@@ -96,16 +97,16 @@ s32 client_init(s8 *name, s8 *host, s8 *port, srvcb req_scb, srvcb ack_scb) {
     rpc->rx_tid = ~0;
     rpc->tx_tid = ~0;
     if (strstr(name, "UPNP")) {
-        rpc->cid = RPC_UPNP_ID;
+        rpc->cli_conn.cid = RPC_UPNP_ID;
     } else if (strstr(name, "DLNA")) {
-        rpc->cid = RPC_DLNA_ID;
+        rpc->cli_conn.cid = RPC_DLNA_ID;
     }
     
     rpc->req_scb = req_scb;
     rpc->ack_scb = ack_scb;
-    memcpy(rpc->name, name, min(strlen(name), sizeof(rpc->name)));
-    memcpy(rpc->server_host, host, min(strlen(host), sizeof(rpc->server_host)));
-    memcpy(rpc->server_port, port, min(strlen(port), sizeof(rpc->server_port)));
+    memcpy(rpc->cli_conn.name, name, min(strlen(name), (size_t)MAX_CONN_NAME));
+    memcpy(rpc->srv_host, host, min(strlen(host), sizeof(rpc->srv_host)));
+    memcpy(rpc->srv_port, port, min(strlen(port), sizeof(rpc->srv_port)));
 
     if (msf_timer_init() < 0) goto error;
 
@@ -117,11 +118,11 @@ s32 client_init(s8 *name, s8 *host, s8 *port, srvcb req_scb, srvcb ack_scb) {
     
     MSF_RPC_LOG(DBG_INFO, "Client cmd init successful");
 
-    if (network_init() < 0)   goto error;
+    if (network_init() < 0) goto error;
 
     MSF_RPC_LOG(DBG_INFO, "Client network init successful");
 
-    if (thread_init() < 0) 	 goto error;
+    if (thread_init() < 0) goto error;
 
     MSF_RPC_LOG(DBG_INFO, "Client thread init successful");
 
@@ -166,11 +167,11 @@ s32 client_service(struct basic_pdu *pdu) {
     bhs->datalen = pdu->paylen;
     bhs->restlen = pdu->restlen;
 
-    bhs->srcid =  rpc->cid;
+    bhs->srcid =  rpc->cli_conn.cid;
     bhs->dstid =  pdu->dstid;
     bhs->cmd =  pdu->cmd;
-    msf_atomic_fetch_add(&rpc->msg_seq, 1);
-    bhs->seq = rpc->msg_seq;
+    msf_atomic_fetch_add(&(rpc->cli_conn.msg_seq), 1);
+    bhs->seq = rpc->cli_conn.msg_seq;
     bhs->checksum = 0;
     bhs->timeout  = pdu->timeout;
 
@@ -184,7 +185,7 @@ s32 client_service(struct basic_pdu *pdu) {
     refcount_incr(&new_cmd->ref_cnt);
     cmd_push_tx(new_cmd);
 
-    if (msf_eventfd_notify(rpc->ev_conn.fd) < 0) {
+    if (msf_eventfd_notify(rpc->evt_conn.fd) < 0) {
           MSF_RPC_LOG(DBG_ERROR, "Notofy tx thread faild.");
         cmd_free(new_cmd);
         return -1;

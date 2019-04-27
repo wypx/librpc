@@ -48,11 +48,11 @@ s32 cmd_init(void) {
         INIT_LIST_HEAD(&rpc->free_cmd_list[buf_idx]);
     }
 
-    INIT_LIST_HEAD(&rpc->tx_cmd_list);
-    INIT_LIST_HEAD(&rpc->ack_cmd_list);
+    INIT_LIST_HEAD(&rpc->cli_conn.tx_cmd_list);
+    INIT_LIST_HEAD(&rpc->cli_conn.ack_cmd_list);
 
-    pthread_spin_init(&rpc->tx_cmd_lock, 0);
-    pthread_spin_init(&rpc->ack_cmd_lock, 0);
+    pthread_spin_init(&rpc->cli_conn.tx_cmd_lock, 0);
+    pthread_spin_init(&rpc->cli_conn.ack_cmd_lock, 0);
 
     return 0;
 }
@@ -169,21 +169,21 @@ struct cmd *cmd_new(s32 data_len) {
 }
 
 void cmd_push_ack(struct cmd *ack_cmd) {
-    pthread_spin_lock(&rpc->ack_cmd_lock);
-    list_add_tail(&ack_cmd->cmd_to_list, &rpc->ack_cmd_list);
-    pthread_spin_unlock(&rpc->ack_cmd_lock);
+    pthread_spin_lock(&rpc->cli_conn.ack_cmd_lock);
+    list_add_tail(&ack_cmd->cmd_to_list, &rpc->cli_conn.ack_cmd_list);
+    pthread_spin_unlock(&rpc->cli_conn.ack_cmd_lock);
 }
 
 void cmd_push_tx(struct cmd *tx_cmd)  {
-    pthread_spin_lock(&rpc->tx_cmd_lock);
-    list_add_tail(&tx_cmd->cmd_to_list, &rpc->tx_cmd_list);
-    pthread_spin_unlock(&rpc->tx_cmd_lock);
+    pthread_spin_lock(&rpc->cli_conn.tx_cmd_lock);
+    list_add_tail(&tx_cmd->cmd_to_list, &rpc->cli_conn.tx_cmd_list);
+    pthread_spin_unlock(&rpc->cli_conn.tx_cmd_lock);
 }
 
 void cmd_push_tx_head(struct cmd *tx_cmd)  {
-    pthread_spin_lock(&rpc->tx_cmd_lock);
-    list_add(&tx_cmd->cmd_to_list, &rpc->tx_cmd_list);
-    pthread_spin_unlock(&rpc->tx_cmd_lock);
+    pthread_spin_lock(&rpc->cli_conn.tx_cmd_lock);
+    list_add(&tx_cmd->cmd_to_list, &rpc->cli_conn.tx_cmd_list);
+    pthread_spin_unlock(&rpc->cli_conn.tx_cmd_lock);
 }
 
 /*
@@ -195,29 +195,27 @@ struct cmd* cmd_pop_ack(u32 seq) {
     struct cmd *ack_cmd = NULL;
     struct cmd *next_cmd = NULL;
     
-    pthread_spin_lock(&rpc->ack_cmd_lock);
+    pthread_spin_lock(&rpc->cli_conn.ack_cmd_lock);
     
-    if (list_empty(&rpc->ack_cmd_list)) {
+    if (list_empty(&rpc->cli_conn.ack_cmd_list)) {
         MSF_RPC_LOG(DBG_INFO, "TX ack buffer list is empty.");
-        pthread_spin_unlock(&rpc->ack_cmd_lock);
+        pthread_spin_unlock(&rpc->cli_conn.ack_cmd_lock);
         return NULL;
     }
 
     /*Find the same seq of cmd*/
-    list_for_each_entry_safe(ack_cmd, next_cmd, &rpc->ack_cmd_list, cmd_to_list) 
-    {
-        if (ack_cmd) {
-            if (likely(ack_cmd->bhs.seq == seq)) {
+    list_for_each_entry_safe(ack_cmd, next_cmd, 
+        &rpc->cli_conn.ack_cmd_list, cmd_to_list) {
+            if (ack_cmd->bhs.seq == seq) {
                 list_del_init(&ack_cmd->cmd_to_list);
                 break;
             } else {
                 ack_cmd = NULL;
             }
-        }
     }
-    pthread_spin_unlock(&rpc->ack_cmd_lock);
+    pthread_spin_unlock(&rpc->cli_conn.ack_cmd_lock);
 
-    MSF_RPC_LOG(DBG_INFO, "TX ack buffer size(%d).", list_size(&rpc->ack_cmd_list));
+    MSF_RPC_LOG(DBG_INFO, "TX ack buffer size(%d).", list_size(&rpc->cli_conn.ack_cmd_list));
 
     if (!ack_cmd) {
         MSF_RPC_LOG(DBG_ERROR, "Failed to pop one ack buffer_item.");
@@ -231,18 +229,18 @@ struct cmd* cmd_pop_tx(void) {
 
     struct cmd *tx_cmd = NULL;
 
-    pthread_spin_lock(&rpc->tx_cmd_lock);
+    pthread_spin_lock(&rpc->cli_conn.tx_cmd_lock);
 
-    if (list_empty(&rpc->tx_cmd_list)) {
+    if (list_empty(&rpc->cli_conn.tx_cmd_list)) {
         MSF_RPC_LOG(DBG_INFO, "TX write buffer list is empty.");
-        pthread_spin_unlock(&rpc->tx_cmd_lock);
+        pthread_spin_unlock(&rpc->cli_conn.tx_cmd_lock);
         return NULL;
     }
 
-    tx_cmd = list_first_entry_or_null(&rpc->tx_cmd_list, 
+    tx_cmd = list_first_entry_or_null(&rpc->cli_conn.tx_cmd_list, 
                             struct cmd, cmd_to_list);
     
-    pthread_spin_unlock(&rpc->tx_cmd_lock);
+    pthread_spin_unlock(&rpc->cli_conn.tx_cmd_lock);
 
     if (!tx_cmd) {
         MSF_RPC_LOG(DBG_ERROR, "Failed to get one write buffer_item.");

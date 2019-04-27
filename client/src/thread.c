@@ -119,18 +119,19 @@ static s32 login_init(void) {
     bhs->seq        = time(NULL);
     bhs->timeout    = MSF_NO_WAIT;
     bhs->cmd        = RPC_LOGIN;
-    bhs->srcid      = rpc->cid;
+    bhs->srcid      = rpc->cli_conn.cid;
     bhs->dstid      = RPC_MSG_SRV_ID;
     bhs->datalen    = sizeof(struct login_pdu);
-    memcpy(login->name, rpc->name, min(strlen(rpc->name), sizeof(rpc->name)));
-    login->chap = rpc->chap;
+    memcpy(login->name, rpc->cli_conn.name, 
+        min(strlen(rpc->cli_conn.name), sizeof(rpc->cli_conn.name)));
+    login->chap = rpc->cli_conn.chap.enable;
     req_cmd->used_len = sizeof(struct login_pdu);
     req_cmd->callback = rpc->req_scb;
 
     refcount_incr(&req_cmd->ref_cnt);
     cmd_push_tx(req_cmd);
 
-    if (msf_eventfd_notify(rpc->ev_conn.fd) < 0) {
+    if (msf_eventfd_notify(rpc->evt_conn.fd) < 0) {
         cmd_free(req_cmd);
         return -1;
     }
@@ -177,7 +178,7 @@ s32 rx_thread_handle_req_direct(struct conn *c) {
 
     refcount_incr(&req->ref_cnt);
     cmd_push_tx(req);
-    msf_eventfd_notify(rpc->ev_conn.fd);
+    msf_eventfd_notify(rpc->evt_conn.fd);
 
     return 0;
 }
@@ -512,7 +513,7 @@ void * rx_thread_worker(void *lparam) {
     struct client *rpc = (struct client*)lparam;
 
     while (!rpc->stop_flag) {
-        msf_event_base_loop(rpc->ev_rx_base);
+        msf_event_base_dispatch(rpc->rx_evt_base);
     }
     MSF_RPC_LOG(DBG_ERROR, "RX thread will exit now.");
     return NULL;
@@ -524,6 +525,8 @@ static void tx_thread_callback(void *arg) {
     struct conn *c = (struct conn*)arg;
     struct cmd *tx_cmd = NULL;
     struct basic_head *bhs = NULL;
+
+    MSF_RPC_LOG(DBG_INFO, "Tx_thread_callback.");
 
     msf_eventfd_clear(c->fd);
 
@@ -575,7 +578,7 @@ void * tx_thread_worker(void *lparam) {
     struct client *rpc = (struct client*)lparam;
 
     while (!rpc->stop_flag) {
-        msf_event_base_loop(rpc->ev_tx_base);
+        msf_event_base_dispatch(rpc->tx_evt_base);
     }
     return NULL;
 }
@@ -622,30 +625,30 @@ s32 thread_init(void) {
 
     s32 rc = -1;
 
-    rpc->ev_tx_base = msf_event_base_create();
-    if (!rpc->ev_tx_base) {
+    rpc->tx_evt_base = msf_event_base_new();
+    if (!rpc->tx_evt_base) {
         return -1;
     }
 
-    rpc->ev_rx_base = msf_event_base_create();
-    if (!rpc->ev_rx_base) {
+    rpc->rx_evt_base = msf_event_base_new();
+    if (!rpc->rx_evt_base) {
         return -1;
     }
 
-    rpc->ev_tx = msf_event_create(rpc->ev_conn.fd, tx_thread_callback,
-                    NULL, NULL, &rpc->ev_conn);
-    if (!rpc->ev_tx) {
+    rpc->tx_evt = msf_event_new(rpc->evt_conn.fd, tx_thread_callback,
+                    NULL, NULL, &rpc->evt_conn);
+    if (!rpc->tx_evt) {
         return -1;
     }
 
-    rpc->ev_rx = msf_event_create(rpc->cli_conn.fd, rx_thread_callback,
+    rpc->rx_evt = msf_event_new(rpc->cli_conn.fd, rx_thread_callback,
                     NULL, NULL, &rpc->cli_conn);
-    if (!rpc->ev_rx) {
+    if (!rpc->rx_evt) {
         return -1;
     }
 
-    msf_event_add(rpc->ev_tx_base, rpc->ev_tx);
-    msf_event_add(rpc->ev_rx_base, rpc->ev_rx);
+    msf_event_add(rpc->tx_evt_base, rpc->tx_evt);
+    msf_event_add(rpc->rx_evt_base, rpc->rx_evt);
 
     rc = pthread_spawn(&rpc->tx_tid, (void*)tx_thread_worker, rpc);
     if (rc < 0) {
@@ -675,14 +678,14 @@ s32 thread_init(void) {
 void thread_deinit(void) {
 
     rpc->stop_flag = true;
-    msf_event_del(rpc->ev_tx_base, rpc->ev_tx);
-    msf_event_del(rpc->ev_rx_base, rpc->ev_rx);
-    msf_event_destroy(rpc->ev_tx);
-    msf_event_destroy(rpc->ev_rx);
-    sclose(rpc->ev_conn.fd);
+    msf_event_del(rpc->tx_evt_base, rpc->tx_evt);
+    msf_event_del(rpc->rx_evt_base, rpc->rx_evt);
+    msf_event_free(rpc->tx_evt);
+    msf_event_free(rpc->rx_evt);
     sclose(rpc->cli_conn.fd);
-    msf_event_base_destroy(rpc->ev_rx_base);
-    msf_event_base_destroy(rpc->ev_tx_base);
+    sclose(rpc->cli_conn.fd);
+    msf_event_base_free(rpc->tx_evt_base);
+    msf_event_base_free(rpc->rx_evt_base);
 }
 
 

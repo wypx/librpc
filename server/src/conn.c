@@ -158,14 +158,14 @@ struct conn *conn_new(s32 new_fd, s16 event) {
         msf_socket_nonblocking(new_fd);
 
         list_del_init(&new_conn->conn_to_free);
-        new_conn->clifd = new_fd;
+        new_conn->fd = new_fd;
         new_conn->desc.recv_stage  = stage_recv_bhs;
-        new_conn->rx = &srv->rx_threads[(new_conn->clifd) % (srv->max_thread)];
-        new_conn->tx = &srv->tx_threads[(new_conn->clifd) % (srv->max_thread)];
+        new_conn->rx = &srv->rx_threads[(new_conn->fd) % (srv->max_thread)];
+        new_conn->tx = &srv->tx_threads[(new_conn->fd) % (srv->max_thread)];
 
         if (unlikely(new_fd == srv->unix_socket
             ||  new_fd == srv->net_socket_v4
-            ||  new_fd == srv->net_socket_v4)) {
+            ||  new_fd == srv->net_socket_v6)) {
             msf_add_event(srv->listen_ep_fd, new_fd, event, new_conn);
         } else {
             msf_add_event(new_conn->rx->epoll_fd, new_fd, event, new_conn);
@@ -181,9 +181,9 @@ void conn_free(struct conn *c) {
 
     dictDelete(srv->conn_dict, c->key);
     
-    msf_del_event(c->rx->epoll_fd, c->clifd);
+    msf_del_event(c->rx->epoll_fd, c->fd);
 
-    sclose(c->clifd);
+    sclose(c->fd);
 
     /* delete cmd in tx cmd_list*/
 

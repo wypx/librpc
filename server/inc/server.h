@@ -10,20 +10,20 @@
 * and/or fitness for purpose.
 *
 **************************************************************************/
-
 #ifndef _SERVER_H_
 #define _SERVER_H_
+
+#define HAVE_GETIFADDRS         1
+#define HAVE_TCP_FASTOPEN       1
+#define HAVE_DEFERRED_ACCEPT    1
+#define HAVE_KEEPALIVE_TUNABLE  1
+
 #define _GNU_SOURCE
 
-#include <msf_list.h>
-#include <msf_network.h>
 #include <msf_cpu.h>
 #include <msf_os.h>
-#include <protocol.h>
+#include <conn.h>
 #include <dict.h>
-
-#include <sys/sysinfo.h>
-#include <sys/resource.h>
 
 #define MSF_MOD_AGENT "AGENT"
 
@@ -32,16 +32,12 @@
                 __func__, __FILE__, __LINE__, __VA_ARGS__)
 
 #define max_config_len      128
-#define max_conn_number     1024
+#define MAX_CONN_NUM         1024
 #define max_conn_name       32
 #define max_listen_backlog  8
 #define max_epoll_event     256
 #define max_unix_path_len   256
 #define max_reserverd_len   256
-
-#define max_conn_iov_slot   8
-#define max_conn_cmd_len    2048
-#define max_conn_cmd_num    64
 
 
 #define default_config_path     "/media/psf/tomato/packet/config/msf_rpc_srv.conf"
@@ -78,39 +74,6 @@ struct config_option {
     s8 value[max_config_len];
 } __attribute__((__packed__));
 
-
-enum io_state {
-    io_init             = 0,
-    io_read_half        = 1,
-    io_read_done        = 2,
-    io_write_half       = 3,
-    io_write_done       = 4,
-    io_close            = 5,
-} __attribute__((__packed__));
-
-enum opcode {
-    /* Client to Server Message Opcode values */
-    op_nopout_cmd   = 0x01,
-    op_login_cmd    = 0x02,
-    op_data_cmd     = 0x03,
-
-	/* Server to Client Message Opcode values */
-    op_nopin_cmd    = 0x10,
-    op_login_rsp    = 0x11,
-    op_data_rsp     = 0x12,
-} __attribute__((__packed__));
-
-enum rcv_stage {
-    stage_recv_bhs      = 0x01,
-    stage_recv_data     = 0x02,
-    stage_recv_next     = 0x03,
-}__attribute__((__packed__));
-
-enum snd_stage {
-    stage_send_bhs      = 0x01,
-    stage_send_data     = 0x02,
-}__attribute__((__packed__));
-
 struct  network_ops {
     s32 (*s_sock_init)(s8 *data, u32 len);
     s32 (*s_option_cb)(s32 fd);
@@ -143,24 +106,14 @@ struct tx_thread {
 } __attribute__((__packed__));
 
 
-struct cmd {
-    struct list_head cmd_to_list; /* link to freelist or txlist*/
-    struct list_head cmd_to_conn; /* link to conn, close conn*/
-
-    struct basic_head bhs;
-    struct conn *cmd_conn;
-    u32 cmd_state;
-    s8  cmd_buff[max_conn_cmd_len];
-} __attribute__((__packed__));
-
 struct srv_listen {
     s32 fd;
     struct sockaddr *sockaddr; 
     socklen_t socklen;
 
-    s32 backlog; //
-    s32 rcvbuf;//内核中对于这个套接字的接收缓冲区大小
-    s32 sndbuf;//内核中对于这个套接字的发送缓冲区大小
+    s32 backlog;
+    s32 rcvbuf;
+    s32 sndbuf;
 
 #if (HAVE_KEEPALIVE_TUNABLE)
     s32 keepidle;
@@ -191,71 +144,6 @@ struct srv_listen {
 } __attribute__((__packed__));
 
 
-struct chap_param {
-    u32     auth_state;
-    u32     auth_method;
-    s8      auth_user[32];
-    s8      auth_hash[32];
-} __attribute__((__packed__));
-
-struct conn_desc {
-
-    struct msghdr rx_msghdr;
-    struct msghdr tx_msghdr;
-
-    struct iovec rx_iov[max_conn_iov_slot]; 
-    struct iovec tx_iov[max_conn_iov_slot]; 
-
-    enum snd_stage send_stage;
-    enum rcv_stage recv_stage;
-
-    enum io_state send_state;
-    enum io_state recv_state;
-
-    u32 rx_iosize;
-    u32 rx_iovcnt;
-    u32 rx_iovused;
-    u32 rx_iovoffset;
-
-    u32 tx_iosize;
-    u32 tx_iovcnt;
-    u32 tx_iovused;
-    u32 tx_iovoffset;
-} __attribute__((__packed__));
-
-
-struct conn {
-    s8  name[max_conn_name];
-    s32 clifd;
-    u32 cid;
-
-    u32 state;
-    u32 timedout:1;
-    u32 close:1; //为1时表示连接关闭
-    u32 sendfile:1;
-    u32 sndlowat:1;
-    u32 tcp_nodelay:2; //域套接字默认是disable
-    u32 tcp_nopush:2;
-
-    sds key;
-
-    struct list_head conn_to_free; /* link to tx */
-
-    struct basic_head bhs;
-    struct chap_param chap;
-
-    struct conn_desc desc;
-
-    struct list_head snd_cmd_list; /* queue of tx connections to handle*/
-    struct list_head rcv_cmd_list; /* queue of rx connections to handle*/
-
-    struct rx_thread *rx;
-    struct tx_thread *tx;
-
-    pthread_mutex_t lock;
-}__attribute__((__packed__));
-
-
 struct server {
     struct config_option *config_array;
     s32         config_num;
@@ -274,7 +162,6 @@ struct server {
     struct conn *listen_unix;
 
     s32     backlog;    /* default 8 */
-
     s32     unix_enable;
     s32     unix_socket;
     s32     access_mask; /* access mask (a la chmod) for unix domain socket */
@@ -284,7 +171,7 @@ struct server {
     s32     net_enable_v6;
     s32     net_socket_v4;
     s32     net_socket_v6;
-    s32     net_prot_v4;   /* network protocol */
+    s32     net_prot_v4;   /* network protocol: tcp udp muticast*/
     s32     net_prot_v6;
     s32     tcp_port;
     s32     udp_port;

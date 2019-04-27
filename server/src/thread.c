@@ -106,11 +106,11 @@ void rx_handle_result(struct conn *c, s32 rc) {
 
     if (unlikely(0 == rc)) {
         MSF_AGENT_LOG(DBG_ERROR, "Recv close by peer(%s) fd(%d) ret(%d) errno(%d).", 
-                c->name, c->clifd, rc, errno);
+                c->name, c->fd, rc, errno);
         conn_free(c);
         c->desc.recv_state = io_close;
     } else if (rc < 0) {
-        MSF_AGENT_LOG(DBG_ERROR, "Recvmsg peer(%s) fd(%d) errno(%d).", c->name, c->clifd, errno);
+        MSF_AGENT_LOG(DBG_ERROR, "Recvmsg peer(%s) fd(%d) errno(%d).", c->name, c->fd, errno);
         if (errno == EINTR || errno == EAGAIN ||
            errno == EWOULDBLOCK) {
             c->desc.recv_state = io_read_half;
@@ -132,11 +132,11 @@ void tx_handle_result(struct conn *c, s32 rc) {
 
     if (unlikely(0 == rc)) {
         MSF_AGENT_LOG(DBG_INFO, "Send close by peer(%s) fd(%d) ret(%d) errno(%d).", 
-            c->name, c->clifd, rc, errno);
+            c->name, c->fd, rc, errno);
         conn_free(c);
         c->desc.send_state = io_close;
     } else if (rc < 0) {
-        MSF_AGENT_LOG(DBG_ERROR, "Sendmsg peer(%s) fd(%d) errno(%d).", c->name, c->clifd, errno);
+        MSF_AGENT_LOG(DBG_ERROR, "Sendmsg peer(%s) fd(%d) errno(%d).", c->name, c->fd, errno);
         if (errno == EINTR || errno == EAGAIN ||
            errno == EWOULDBLOCK) {
             c->desc.send_state = io_write_half;
@@ -286,7 +286,7 @@ static void rx_thread_read_bhs(struct conn *c) {
     conn_add_rx_iovec(c, &c->bhs, sizeof(struct basic_head));
 
     init_msghdr(msg, c->desc.rx_iov, c->desc.rx_iovcnt);
-    rc = msf_recvmsg(c->clifd, msg);
+    rc = msf_recvmsg(c->fd, msg);
 
     rx_handle_result(c, rc);
 
@@ -319,7 +319,7 @@ static void rx_thread_read_data(struct conn *c) {
     conn_add_rx_iovec(c, &new_cmd->cmd_buff, bhs->datalen);
 
     init_msghdr(msg, c->desc.rx_iov, c->desc.rx_iovcnt);
-    rc = msf_recvmsg(c->clifd, msg);
+    rc = msf_recvmsg(c->fd, msg);
 
     MSF_AGENT_LOG(DBG_INFO, "Recv data len is %u.", rc);
 
@@ -438,85 +438,85 @@ static void rx_thread_read_loop(struct conn *c) {
  */
 static s32 rx_thread_accept(struct conn *c) {
 
-	s16 event = EPOLLIN | EPOLLOUT;
-	//s16 event = EPOLLIN | EPOLLOUT | EPOLLERR | EPOLLRDHUP | EPOLLHUP;
+    s16 event = EPOLLIN | EPOLLOUT;
+    //s16 event = EPOLLIN | EPOLLOUT | EPOLLERR | EPOLLRDHUP | EPOLLHUP;
 
-	s32 stop = false; 
-	s32 new_fd = invalid_socket;
-	struct sockaddr_storage addr;
-	socklen_t addrlen = sizeof(struct sockaddr_storage);
+    s32 stop = false; 
+    s32 new_fd = invalid_socket;
+    struct sockaddr_storage addr;
+    socklen_t addrlen = sizeof(struct sockaddr_storage);
 
-	struct conn *new_conn = NULL;
+    struct conn *new_conn = NULL;
 
-	do {
-		msf_memzero(&addr, sizeof(struct sockaddr_storage));
+    do {
+        msf_memzero(&addr, sizeof(struct sockaddr_storage));
 #if 0
 #if defined(HAVE_ACCEPT4) && defined(SOCK_CLOEXEC) && defined(SOCK_NONBLOCK)
-	new_fd = accept4(c->clifd, addr, addrlen, SOCK_NONBLOCK);
-	if (new_fd >= 0 || (errno != EINVAL && errno != ENOSYS)) {
-		/* A nonnegative result means that we succeeded, so return.
-		 * Failing with EINVAL means that an option wasn't supported,
-		 * and failing with ENOSYS means that the syscall wasn't
-		 * there: in those cases we want to fall back.  Otherwise, we
-		 * got a real error, and we should return. */
-		return new_fd;
-	}
+    new_fd = accept4(c->fd, addr, addrlen, SOCK_NONBLOCK);
+    if (new_fd >= 0 || (errno != EINVAL && errno != ENOSYS)) {
+        /* A nonnegative result means that we succeeded, so return.
+         * Failing with EINVAL means that an option wasn't supported,
+         * and failing with ENOSYS means that the syscall wasn't
+         * there: in those cases we want to fall back.  Otherwise, we
+         * got a real error, and we should return. */
+        return new_fd;
+    }
 #endif
 #endif
 
-		 /*
-	     * The returned socklen is ignored here, because sockaddr_in and
-	     * sockaddr_in6 socklens are not changed.  As to unspecified sockaddr_un
-	     * it is 3 byte length and already prepared, because old BSDs return zero
-	     * socklen and do not update the sockaddr_un at all; Linux returns 2 byte
-	     * socklen and updates only the sa_family part; other systems copy 3 bytes
-	     * and truncate surplus zero part.  Only bound sockaddr_un will be really
-	     * truncated here.
-	     */
-		new_fd = accept(c->clifd, (struct sockaddr*)&addr, &addrlen);
+         /*
+         * The returned socklen is ignored here, because sockaddr_in and
+         * sockaddr_in6 socklens are not changed.  As to unspecified sockaddr_un
+         * it is 3 byte length and already prepared, because old BSDs return zero
+         * socklen and do not update the sockaddr_un at all; Linux returns 2 byte
+         * socklen and updates only the sa_family part; other systems copy 3 bytes
+         * and truncate surplus zero part.  Only bound sockaddr_un will be really
+         * truncated here.
+         */
+		new_fd = accept(c->fd, (struct sockaddr*)&addr, &addrlen);
 		if (new_fd < 0) {
 			if (errno == EINTR)
 				continue;
 
-			if (errno == EPERM) {
+            if (errno == EPERM) {
 
-			}
-			
-			if (errno == ENOBUFS || errno == ENOMEM) {
-				//没有足够的自由内存.这通常是指套接口内存分配被限制
-				//而不是指系统内存不足
-			}
+            }
 
-			if (errno == EBADF) {
-				//描述符无效
-			}
+            if (errno == ENOBUFS || errno == ENOMEM) {
+                //没有足够的自由内存.这通常是指套接口内存分配被限制
+                //而不是指系统内存不足
+            }
 
-			if (errno == EAGAIN || errno == EWOULDBLOCK 
-				|| errno == ECONNABORTED) {
-				/* these are transient, so don't log anything */
-				stop = true;
-			} else if (errno == EMFILE || errno == ENFILE) {
-				//进程的上限EMFILE
-				//系统的上限ENFILE
-				MSF_AGENT_LOG(DBG_INFO, "too many open connections\n");	
-				//accept_new_conns(s, false);
-				stop = true;
-			} else {
-				perror("accept()");
-				stop = true;
-			}
-			break;
-		}
+            if (errno == EBADF) {
+                //描述符无效
+            }
 
-	}while(stop);
+        if (errno == EAGAIN || errno == EWOULDBLOCK 
+            || errno == ECONNABORTED) {
+            /* these are transient, so don't log anything */
+            stop = true;
+        } else if (errno == EMFILE || errno == ENFILE) {
+            //进程的上限EMFILE
+            //系统的上限ENFILE
+            MSF_AGENT_LOG(DBG_INFO, "too many open connections\n");	
+            //accept_new_conns(s, false);
+            stop = true;
+        } else {
+            perror("accept()");
+            stop = true;
+        }
+        break;
+    }
 
-	new_conn = conn_new(new_fd, event);
-	if (unlikely(!new_conn)) {
-		sclose(new_fd);
-		return -1;
-	}
-	
-	return 0;
+    }while(stop);
+
+    new_conn = conn_new(new_fd, event);
+    if (unlikely(!new_conn)) {
+        sclose(new_fd);
+        return -1;
+    }
+
+    return 0;
 }
 
 void * listen_thread_worker(void *arg) {
@@ -557,11 +557,11 @@ void * listen_thread_worker(void *arg) {
 
         if (events[idx].events & EPOLLIN) {
 
-        MSF_AGENT_LOG(DBG_INFO, "Listen thread fd(%d) happen idx(%d).", c->clifd, idx);
+        MSF_AGENT_LOG(DBG_INFO, "Listen thread fd(%d) happen idx(%d).", c->fd, idx);
 
-        if (c->clifd == srv->unix_socket ||
-           c->clifd == srv->net_socket_v4 ||
-           c->clifd == srv->net_socket_v4) {
+        if (c->fd == srv->unix_socket ||
+           c->fd == srv->net_socket_v4 ||
+           c->fd == srv->net_socket_v4) {
                 rx_thread_accept(c);
             }
         } 
@@ -636,12 +636,12 @@ static void *rx_thread_worker(void *arg) {
                 continue;
 
             if (events[idx].events & EPOLLIN) {
-                MSF_AGENT_LOG(DBG_INFO, "RX thread event happen fd(%d) idx(%d).", c->clifd, idx);
+                MSF_AGENT_LOG(DBG_INFO, "RX thread event happen fd(%d) idx(%d).", c->fd, idx);
                 rx_thread_read_loop(c);
             } 
 
             if (events[idx].events & EPOLLOUT) {
-                    rx_wakeup_write(c);
+                rx_wakeup_write(c);
             }
 
         }
@@ -705,9 +705,9 @@ static void * tx_thread_worker(void *arg) {
             conn_add_tx_iovec(c, &new_cmd->cmd_buff, new_cmd->bhs.datalen);
         }
         init_msghdr(&c->desc.tx_msghdr, c->desc.tx_iov, c->desc.tx_iovcnt);
-        rc = msf_sendmsg(c->clifd, &c->desc.tx_msghdr);
+        rc = msf_sendmsg(c->fd, &c->desc.tx_msghdr);
 
-        MSF_AGENT_LOG(DBG_INFO, "Sendmsg fd(%d) ret(%d).", c->clifd, rc);
+        MSF_AGENT_LOG(DBG_INFO, "Sendmsg fd(%d) ret(%d).", c->fd, rc);
 
         tx_handle_result(c, rc);
         if (io_write_done == c->desc.send_state) {

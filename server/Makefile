@@ -11,7 +11,7 @@ include $(ROOTDIR)/Rules.make
 TMP_PATH =lib
 TARGET	 =$(LIBPATH)/libmsf_rpc_srv.so
 
-IFLAGS	 +=-I inc -I $(ROOTDIR)/inc -I../../libmsf/msf/inc -I../client/inc 
+IFLAGS	 +=-I inc -I $(ROOTDIR)/inc -I../../libmsf/msf/inc -I../comm
 CFLAGS	 +=-fPIC -Wall -Wextra -W -O2 -pipe -Wswitch-default -Wpointer-arith -Wno-unused -ansi -ftree-vectorize -std=gnu11
 DFLAGS	 +=#-D_GNU_SOURCE 
 LDFLAGS	 +=-shared 

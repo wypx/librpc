@@ -63,9 +63,9 @@ void param_init(void) {
 
     srv->pack_type = packet_binary;
 
-    srv->max_cmd = max_conn_cmd_num;
+    srv->max_cmd = MAX_CONN_CMD_NUM;
     srv->max_bytes = 64 * 1024 * 1024; /* default is 64MB */
-    srv->max_conns = max_conn_number;/* to limit connections-related memory to about 5MB */
+    srv->max_conns = MAX_CONN_NUM;/* to limit connections-related memory to about 5MB */
 
     srv->max_cores = get_nprocs_conf();
     srv->used_cores = get_nprocs();
