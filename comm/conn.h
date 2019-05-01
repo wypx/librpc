@@ -10,10 +10,8 @@
 * and/or fitness for purpose.
 *
 **************************************************************************/
-#include <msf_utils.h>
 #include <msf_atomic.h>
-#include <msf_list.h>
-#include <msf_network.h>
+#include <msf_thread.h>
 #include <msf_event.h>
 #include <protocol.h>
 #include <sds.h>

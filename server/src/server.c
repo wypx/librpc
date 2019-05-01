@@ -104,7 +104,8 @@ s32 server_init(void) {
 
     MSF_AGENT_LOG(DBG_INFO, "Server config init successful.");
 
-    save_pid(srv->pid_file);
+    msf_create_pidfile(srv->pid_file);
+    msf_write_pidfile(srv->pid_file);
 
     signal_init();
 
@@ -138,7 +139,7 @@ exit:
 }
 
 void server_deinit(void) {
-    remove_pidfile(srv->pid_file);
+    msf_delete_pidfile(srv->pid_file);
     config_deinit();
     cmd_deinit();
     conn_deinit();

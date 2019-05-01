@@ -527,9 +527,9 @@ void * listen_thread_worker(void *arg) {
     struct epoll_event events[max_epoll_event];
     struct conn *c;
 
-    MSF_THREAD_NAME("rpc_listen");
+    msf_thread_name("rpc_listen");
 
-   thread_pin_to_cpu(0);
+    thread_pin_to_cpu(0);
 
     while (!srv->stop_flags) {
 
@@ -578,7 +578,7 @@ void * mgt_thread_worker(void *arg) {
 
     s32 rc = -1;
 
-    MSF_THREAD_NAME("rpc_mgt");
+    msf_thread_name("rpc_mgt");
 
     thread_pin_to_cpu(0);
 
@@ -606,7 +606,7 @@ static void *rx_thread_worker(void *arg) {
 
     s8 rx_name[32] = { 0 };
     snprintf(rx_name, sizeof(rx_name)-1, "rpc_rx_%d", rx->thread_idx+1);
-    MSF_THREAD_NAME(rx_name);
+    msf_thread_name(rx_name);
 
     thread_pin_to_cpu(rx->thread_idx+1);
 
@@ -662,7 +662,7 @@ static void * tx_thread_worker(void *arg) {
 
     s8 tx_name[32] = { 0 };
     snprintf(tx_name, sizeof(tx_name)-1, "rpc_tx_%d", tx->thread_idx+1);
-    MSF_THREAD_NAME(tx_name);
+    msf_thread_name(tx_name);
 
     thread_pin_to_cpu(tx->thread_idx+1);
 

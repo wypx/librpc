@@ -4,7 +4,7 @@
 
 #define MSF_MOD_DLNA "DLNA"
 #define MSF_DLNA_LOG(level, ...) \
-    log_write(level, MSF_MOD_DLNA, __func__, __FILE__, __LINE__, __VA_ARGS__)
+    log_write(level, MSF_MOD_DLNA, MSF_FUNC_FILE_LINE, __VA_ARGS__)
 
 struct upnp_param_t {
     u8  upnp_nat;

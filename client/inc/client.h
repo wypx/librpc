@@ -93,7 +93,7 @@ struct client {
 
 extern struct client *rpc;
 #define MSF_RPC_LOG(level, ...) \
-    log_write(level, rpc->cli_conn.name, __func__, __FILE__, __LINE__, __VA_ARGS__)
+    log_write(level, rpc->cli_conn.name, MSF_FUNC_FILE_LINE, __VA_ARGS__)
 
 s32 client_init(s8 *name, s8 *host, s8 *port, srvcb req_scb, srvcb ack_scb);
 s32 client_deinit(void);

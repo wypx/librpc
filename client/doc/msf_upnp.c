@@ -3,14 +3,14 @@
 
 #define MSF_MOD_UPNP "UPNP"
 #define MSF_UPNP_LOG(level, ...) \
-    log_write(level, MSF_MOD_UPNP, __func__, __FILE__, __LINE__, __VA_ARGS__)
+    log_write(level, MSF_MOD_UPNP, MSF_FUNC_FILE_LINE, __VA_ARGS__)
 
 struct upnp_param_t {
     u8  upnp_nat;
     u8  upnp_discovery;
     u8  reserved[2];
     u8  friend_name[32];
-}__attribute__((__packed__));
+} MSF_PACKED_MEMORY;
 
 struct upnp_param_t upnp;
 
@@ -20,7 +20,7 @@ struct dlna_param_t    {
     s8  confile[64];
     /* set this if you want to customize the name that shows up on your clients */
     s8  friendly_name[32];
-} __attribute__((__packed__));
+} MSF_PACKED_MEMORY;
 
 void upnp_debug_info(struct upnp_param_t *up) {
     MSF_UPNP_LOG(DBG_DEBUG, "UPnP friend name(%s).", up->friend_name);

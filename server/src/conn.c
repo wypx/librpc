@@ -180,7 +180,7 @@ struct conn *conn_new(s32 new_fd, s16 event) {
 void conn_free(struct conn *c) {
 
     dictDelete(srv->conn_dict, c->key);
-    
+
     msf_del_event(c->rx->epoll_fd, c->fd);
 
     sclose(c->fd);

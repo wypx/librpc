@@ -22,14 +22,15 @@
 
 #include <msf_cpu.h>
 #include <msf_os.h>
+#include <msf_svc.h>
+#include <msf_thread.h>
 #include <conn.h>
 #include <dict.h>
 
 #define MSF_MOD_AGENT "AGENT"
 
 #define MSF_AGENT_LOG(level, ...) \
-    log_write(level, MSF_MOD_AGENT, \
-                __func__, __FILE__, __LINE__, __VA_ARGS__)
+    log_write(level, MSF_MOD_AGENT, MSF_FUNC_FILE_LINE, __VA_ARGS__)
 
 #define max_config_len      128
 #define MAX_CONN_NUM         1024
