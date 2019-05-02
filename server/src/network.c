@@ -15,9 +15,6 @@
 
 extern struct conn *conn_new(s32 new_fd, s32 event);
 
-s32 network_init(void);
-void network_deinit(void);
-
 s32 network_init(void) {
 
     s16 event = EPOLLIN;

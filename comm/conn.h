@@ -119,6 +119,7 @@ struct conn {
     struct list_head ack_cmd_list;
     pthread_spinlock_t ack_cmd_lock;
 
+    /*for client use*/
     msf_atomic_t msg_seq; /*ack seq num*/
 } MSF_PACKED_MEMORY;
 

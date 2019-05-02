@@ -12,45 +12,12 @@
 **************************************************************************/
 #include <server.h>
 
-static  __attribute__((constructor(101))) void before_test1()
-{
- 
-    MSF_AGENT_LOG(DBG_INFO, "before1\n");
-}
-static  __attribute__((constructor(102))) void before_test2()
-{
- 
-    MSF_AGENT_LOG(DBG_INFO, "before2\n");
-}
+s32 main(s32 argc, s8 *argv[]) {
 
-/* 这个表示一个方法的返回值只由参数决定, 如果参数不变的话,
-    就不再调用此函数，直接返回值.经过我的尝试发现还是调用了,
-    后又经查资料发现要给gcc加一个-O的参数才可以.
-    是对函数调用的一种优化*/
-__attribute__((const)) s32 test2()
-{
-    return 5;
-}
-
-/* 表示函数的返回值必须被检查或使用,否则会警告*/
-__attribute__((unused)) s32 test3()
-{
-    return 5;
-}
-
-/* Force compiler to use inline*/
-static inline __attribute__((always_inline)) void test5()
-{
-
-}
-
-__attribute__((destructor)) void after_main()  
-{  
-   MSF_AGENT_LOG(DBG_INFO, "after main\n\n");  
-} 
-
-
-static s32 agent_init(void *data, u32 len) {
+    if (unlikely((3 != argc && 2 != argc) 
+        || (3 == argc && !argv[2]))) {
+      //return -1;
+    }
 
     s32 rc = -1;
     s8 buf[PATH_MAX] = { 0 };
@@ -60,22 +27,13 @@ static s32 agent_init(void *data, u32 len) {
        return -1;
     }
 
-    MSF_AGENT_LOG(DBG_INFO, "Msf shell excute path: %s.", buf);
+    MSF_AGENT_LOG(DBG_DEBUG, "Msf shell excute path: %s.", buf);
 
-    return server_init();
-}
+    if (server_init() < 0) return -1;
 
-static s32 agent_deinit(void *data, u32 len) {
-    server_deinit();
+    for ( ;; ) {
+        sleep(1);
+    }
     return 0;
 }
 
-struct svc msf_rpc_srv = {
-    .init       = agent_init,
-    .deinit     = agent_deinit,
-    .start      = NULL,
-    .stop       = NULL,
-    .get_param  = NULL,
-    .set_param  = NULL,
-    .msg_handler= NULL,
-};

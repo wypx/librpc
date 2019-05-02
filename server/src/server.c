@@ -31,10 +31,18 @@ extern void thread_deinit(void);
 extern s32 network_init(void);
 extern void network_deinit(void);
 
-static void signal_init(void);
-static void param_init(void);
+MSF_LIBRARY_INITIALIZER(process_init, 101) {
 
-void param_init(void) {
+    s8 log_path[256] = { 0 };
+    snprintf(log_path, sizeof(log_path)-1, "logger/%s.log", "AGENT");
+
+    if (log_init(log_path) < 0) {
+      return;
+    }
+
+}
+
+MSF_LIBRARY_INITIALIZER(param_init, 102) {
 
     srv->pid = getpid();
     srv->pid_file = default_pid_path;
@@ -73,9 +81,11 @@ void param_init(void) {
 
     pthread_mutex_init(&srv->init_lock, NULL);
     pthread_cond_init(&srv->init_cond, NULL);
+
+    MSF_AGENT_LOG(DBG_DEBUG, "Server param init successful.");
 }
 
-void signal_init(void) {
+MSF_LIBRARY_INITIALIZER(signal_init, 103) {
 
     signal_handler(SIGHUP,  SIG_IGN);
     signal_handler(SIGTERM, SIG_IGN);
@@ -87,45 +97,41 @@ void signal_init(void) {
              MSF_AGENT_LOG(DBG_ERROR, "Failed to daemon() in order to daemonize.");
         }
     }
-};
 
-s32 server_init(void) {
+    MSF_AGENT_LOG(DBG_DEBUG, "Server signal init successful.");
+}
+
+MSF_UNUSED_CHECK s32 server_init(void) {
 
     s32 rc;
-
-    param_init();
 
     if (msf_os_init() < 0)
         return -1;
 
-    MSF_AGENT_LOG(DBG_INFO, "Server os init successful.");
+    MSF_AGENT_LOG(DBG_DEBUG, "Server os init successful.");
 
     if (config_init() < 0) goto exit;
 
-    MSF_AGENT_LOG(DBG_INFO, "Server config init successful.");
+    MSF_AGENT_LOG(DBG_DEBUG, "Server config init successful.");
 
     msf_create_pidfile(srv->pid_file);
     msf_write_pidfile(srv->pid_file);
 
-    signal_init();
-
-    MSF_AGENT_LOG(DBG_INFO, "Server signal init successful.");
-
     if (cmd_init() < 0) goto exit;
 
-    MSF_AGENT_LOG(DBG_INFO, "Server cmd init successful.");
+    MSF_AGENT_LOG(DBG_DEBUG, "Server cmd init successful.");
 
     if (conn_init() < 0) goto exit;
 
-    MSF_AGENT_LOG(DBG_INFO, "Server conn init successful.");
+    MSF_AGENT_LOG(DBG_DEBUG, "Server conn init successful.");
 
     if (thread_init() < 0) goto exit;
 
-    MSF_AGENT_LOG(DBG_INFO, "Server thread init successful.");
+    MSF_AGENT_LOG(DBG_DEBUG, "Server thread init successful.");
 
     if (network_init() < 0) goto exit;
 
-    MSF_AGENT_LOG(DBG_INFO, "Server network init successful.");
+    MSF_AGENT_LOG(DBG_DEBUG, "Server network init successful.");
 
     /* Give the sockets a moment to open. I know this is dumb, but the error
      * is only an advisory.
@@ -134,11 +140,11 @@ s32 server_init(void) {
 
     return 0;
 exit:
-    server_deinit();
+    //server_deinit();
     return -1;
 }
 
-void server_deinit(void) {
+MSF_LIBRARY_FINALIZER(server_deinit) {
     msf_delete_pidfile(srv->pid_file);
     config_deinit();
     cmd_deinit();

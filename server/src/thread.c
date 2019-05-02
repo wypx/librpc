@@ -20,10 +20,6 @@ extern void conn_free(struct conn *c);
 extern struct conn *conn_find_by_id(u32 cid);
 extern s32 conn_add_dict(struct conn *c);
 
-s32 thread_init(void);
-void thread_deinit(void);
-
-
 /* Internal functions */
 static s32 rx_thread_init(void);
 static s32 tx_thread_init(void);
@@ -299,6 +295,23 @@ static void rx_thread_read_bhs(struct conn *c) {
     return;
 }
 
+static void rx_handle_login(struct conn *c) {
+    struct login_pdu *login = NULL;
+    struct cmd *curr_cmd = NULL;
+    struct basic_head *bhs = NULL;
+
+    curr_cmd = c->curr_recv_cmd;
+    login = (struct login_pdu *)curr_cmd->cmd_buff;
+    MSF_AGENT_LOG(DBG_DEBUG, "Login peer name(%s) chap(%u).", login->name, login->chap);
+    memcpy(c->name, login->name, max_conn_name-1);
+    MSF_SWAP(&bhs->srcid, &bhs->dstid);
+    bhs->datalen = bhs->restlen;
+    bhs->restlen = 0;
+    bhs->opcode = RPC_ACK;
+    bhs->errcode = RPC_EXEC_SUCC;
+    msf_memzero(curr_cmd->cmd_buff+sizeof(struct basic_head),
+        sizeof(struct login_pdu)-sizeof(struct basic_head));
+}
 static void rx_thread_read_data(struct conn *c) {
 
     s32 rc = -1;
@@ -417,30 +430,16 @@ static void rx_thread_read_loop(struct conn *c) {
     return;
 }
 
-
-/*
- * A listen socket handler calls an event facility specific io_accept()
- * method.  The method accept()s a new connection and then calls
- * nxt_event_conn_accept() to handle the new connection and to prepare
- * for a next connection to avoid just dropping next accept()ed socket
- * if no more connections allowed.  If there are no available connections
- * an idle connection would be closed.  If there are no idle connections
- * then new connections will not be accept()ed for 1 second.
- */
-
 /* Internal wrapper around 'accept' or 'accept4' to provide Linux-style
  * support for syscall-saving methods where available.
  *
  * In addition to regular accept behavior, you can set one or more of flags
- * EVUTIL_SOCK_NONBLOCK and EVUTIL_SOCK_CLOEXEC in the 'flags' argument, to
- * make the socket nonblocking or close-on-exec with as few syscalls as
- * possible.
+ * SOCK_NONBLOCK and SOCK_CLOEXEC in the 'flags' argument, to make the 
+ * socket nonblocking or close-on-exec with as few syscalls as possible.
  */
 static s32 rx_thread_accept(struct conn *c) {
 
-    s16 event = EPOLLIN | EPOLLOUT;
-    //s16 event = EPOLLIN | EPOLLOUT | EPOLLERR | EPOLLRDHUP | EPOLLHUP;
-
+    s16 event = EPOLLIN | EPOLLERR | EPOLLRDHUP;
     s32 stop = false; 
     s32 new_fd = invalid_socket;
     struct sockaddr_storage addr;
@@ -450,20 +449,18 @@ static s32 rx_thread_accept(struct conn *c) {
 
     do {
         msf_memzero(&addr, sizeof(struct sockaddr_storage));
-#if 0
-#if defined(HAVE_ACCEPT4) && defined(SOCK_CLOEXEC) && defined(SOCK_NONBLOCK)
-    new_fd = accept4(c->fd, addr, addrlen, SOCK_NONBLOCK);
-    if (new_fd >= 0 || (errno != EINVAL && errno != ENOSYS)) {
-        /* A nonnegative result means that we succeeded, so return.
-         * Failing with EINVAL means that an option wasn't supported,
-         * and failing with ENOSYS means that the syscall wasn't
-         * there: in those cases we want to fall back.  Otherwise, we
-         * got a real error, and we should return. */
-        return new_fd;
-    }
-#endif
-#endif
 
+        #if defined(HAVE_ACCEPT4) && defined(SOCK_CLOEXEC) && defined(SOCK_NONBLOCK)
+        new_fd = accept4(c->fd, (struct sockaddr*)&addr, addrlen, SOCK_NONBLOCK);
+        if (new_fd >= 0 || (errno != EINVAL && errno != ENOSYS)) {
+            /* A nonnegative result means that we succeeded, so return.
+             * Failing with EINVAL means that an option wasn't supported,
+             * and failing with ENOSYS means that the syscall wasn't
+             * there: in those cases we want to fall back. Otherwise, we
+             * got a real error, and we should return. */
+            break;
+        }
+        #endif
          /*
          * The returned socklen is ignored here, because sockaddr_in and
          * sockaddr_in6 socklens are not changed.  As to unspecified sockaddr_un
@@ -473,42 +470,35 @@ static s32 rx_thread_accept(struct conn *c) {
          * and truncate surplus zero part.  Only bound sockaddr_un will be really
          * truncated here.
          */
-		new_fd = accept(c->fd, (struct sockaddr*)&addr, &addrlen);
-		if (new_fd < 0) {
-			if (errno == EINTR)
-				continue;
+        new_fd = accept(c->fd, (struct sockaddr*)&addr, &addrlen);
+        if (new_fd < 0) {
+            if (errno == EINTR)
+                continue;
 
-            if (errno == EPERM) {
+            MSF_AGENT_LOG(DBG_ERROR, "Accept failed, errno(%d)(%s).",
+                        errno, strerror(errno));
 
+            if (errno == EAGAIN || errno == EWOULDBLOCK || errno == ECONNABORTED) {
+                /* these are transient, so don't log anything */
+                stop = true;
+                MSF_AGENT_LOG(DBG_ERROR, "Accept blocked now, try again.");
+            } else if (errno == EMFILE || errno == ENFILE) {
+                //杩涚▼鐨勪笂闄怑MFILE
+                //绯荤粺鐨勪笂闄怑NFILE
+                MSF_AGENT_LOG(DBG_INFO, "Too many open connections.");
+                //accept_new_conns(s, false);
+                srv->stop_listen = true;
+                //
+                stop = true;
+            } else {
+                perror("accept()");
+                stop = true;
             }
-
-            if (errno == ENOBUFS || errno == ENOMEM) {
-                //没有足够的自由内存.这通常是指套接口内存分配被限制
-                //而不是指系统内存不足
-            }
-
-            if (errno == EBADF) {
-                //描述符无效
-            }
-
-        if (errno == EAGAIN || errno == EWOULDBLOCK 
-            || errno == ECONNABORTED) {
-            /* these are transient, so don't log anything */
-            stop = true;
-        } else if (errno == EMFILE || errno == ENFILE) {
-            //进程的上限EMFILE
-            //系统的上限ENFILE
-            MSF_AGENT_LOG(DBG_INFO, "too many open connections\n");	
-            //accept_new_conns(s, false);
-            stop = true;
-        } else {
-            perror("accept()");
-            stop = true;
+            break;
         }
-        break;
-    }
-
     }while(stop);
+
+    if (new_fd < 0) return -1;
 
     new_conn = conn_new(new_fd, event);
     if (unlikely(!new_conn)) {
@@ -553,18 +543,18 @@ void * listen_thread_worker(void *arg) {
         */
         c = (struct conn *)events[idx].data.ptr;
         if (unlikely(!c)) 
-        continue;
+            continue;
 
         if (events[idx].events & EPOLLIN) {
 
-        MSF_AGENT_LOG(DBG_INFO, "Listen thread fd(%d) happen idx(%d).", c->fd, idx);
+            MSF_AGENT_LOG(DBG_INFO, "Listen thread fd(%d) happen idx(%d).", c->fd, idx);
 
-        if (c->fd == srv->unix_socket ||
-           c->fd == srv->net_socket_v4 ||
-           c->fd == srv->net_socket_v4) {
-                rx_thread_accept(c);
-            }
-        } 
+            if (c->fd == srv->unix_socket ||
+               c->fd == srv->net_socket_v4 ||
+               c->fd == srv->net_socket_v4) {
+                    rx_thread_accept(c);
+                }
+            } 
 
         }
     }
@@ -829,7 +819,7 @@ void thread_deinit(void) {
         sfree(srv->rx_threads);
     }
 
-    MSF_AGENT_LOG(DBG_INFO, "RX thread exit sucessful.");
+    MSF_AGENT_LOG(DBG_DEBUG, "RX thread exit sucessful.");
 
     if (srv->tx_threads) {
         for (idx = 0; idx < srv->max_thread; idx++) {
@@ -839,14 +829,14 @@ void thread_deinit(void) {
         sfree(srv->tx_threads);
     }
 
-    MSF_AGENT_LOG(DBG_INFO, "TX thread exit sucessful.");
+    MSF_AGENT_LOG(DBG_DEBUG, "TX thread exit sucessful.");
 
     sclose(srv->listen_ep_fd);
 
-    MSF_AGENT_LOG(DBG_INFO, "Listen thread exit sucessful.");
+    MSF_AGENT_LOG(DBG_DEBUG, "Listen thread exit sucessful.");
 
     sem_destroy(&srv->mgt_sem);
 
-    MSF_AGENT_LOG(DBG_INFO, "Mgt thread exit sucesful.");
+    MSF_AGENT_LOG(DBG_DEBUG, "Mgt thread exit sucesful.");
 }
-
+

@@ -8,13 +8,14 @@
 ROOTDIR = ../../..
 include $(ROOTDIR)/Rules.make
 
-TMP_PATH =lib
-TARGET	 =$(LIBPATH)/libmsf_rpc_srv.so
+TMP_PATH =bin
+TARGET	 =$(BINPATH)/msf_agent
 
 IFLAGS	 +=-I inc -I $(ROOTDIR)/inc -I../../libmsf/msf/inc -I../comm
-CFLAGS	 +=-fPIC -Wall -Wextra -W -O2 -pipe -Wswitch-default -Wpointer-arith -Wno-unused -ansi -ftree-vectorize -std=gnu11
-DFLAGS	 +=#-D_GNU_SOURCE 
-LDFLAGS	 +=-shared 
+CFLAGS	 +=-fPIC -Wall -Wextra -W -O2 -pipe -Wswitch-default -Wpointer-arith -g -Wno-unused -ansi -ftree-vectorize -std=gnu11
+DFLAGS 	 =  
+LDFLAGS  = -lpthread -ldl -lnuma -L$(LIBPATH) -lmsf
+
 GFLAG 	 += $(IFLAGS) $(DFLAGS) $(CFLAGS)
 
 SRCS = $(wildcard  src/*.c)
@@ -22,26 +23,23 @@ OBJS = $(SRCS:%.c=$(TMP_PATH)/%.o)
 
 .PHONY:clean
 
-all:$(TARGET) make_conf
+all : $(TARGET)
 
 $(TARGET): $(OBJS)
-	@$(CC) $(LDFLAGS) -o $(TARGET) $(OBJS)
+	@echo $(LINK) $@
+	@$(LINK) -o $@ $^ $(LDFLAGS) 
 	@echo $(STRIP) $@
-	@$(STRIP)  -x -R .note -R .comment $@
-	@cp -f $@ /lib
+	@$(STRIP) -x -R .note -R .comment $@
 	@rm -rf $(TMP_PATH)
+	cp -f doc/msf_agent.conf $(CONFPATH)
 	@echo "====Makefile GFLAG==="
 	@echo $(GFLAG)
 	@echo "======================"
 $(TMP_PATH)/%.o:%.c
-	@mkdir -p $(TMP_PATH)
+	@mkdir -p $(BINPATH)
 	@mkdir -p $(dir $@)
 	@echo $(CC) $@
-	@$(CC) $(GFLAG) -c $< -o $@
-
-make_conf:
-	cp -f doc/msf_rpc_srv.conf $(CONFPATH)
-	cp -f doc/msf_rpc_srv_svc.json $(CONFPATH)
+	@$(CC) $(GFLAG) -c $^ -o $@
 
 clean :
 	rm -rf $(TMP_PATH)

@@ -12,10 +12,6 @@
 **************************************************************************/
 #include <server.h>
 
-s32 cmd_init(void);
-void cmd_deinit(void);
-struct cmd *cmd_new(void);
-
 s32 cmd_init(void) {
 
     u32 cmd_idx;

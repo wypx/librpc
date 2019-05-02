@@ -19,21 +19,18 @@
 #define HAVE_KEEPALIVE_TUNABLE  1
 
 #define _GNU_SOURCE
-
 #include <msf_cpu.h>
 #include <msf_os.h>
 #include <msf_svc.h>
-#include <msf_thread.h>
 #include <conn.h>
 #include <dict.h>
 
 #define MSF_MOD_AGENT "AGENT"
-
 #define MSF_AGENT_LOG(level, ...) \
     log_write(level, MSF_MOD_AGENT, MSF_FUNC_FILE_LINE, __VA_ARGS__)
 
 #define max_config_len      128
-#define MAX_CONN_NUM         1024
+#define MAX_CONN_NUM        1024
 #define max_conn_name       32
 #define max_listen_backlog  8
 #define max_epoll_event     256
@@ -41,7 +38,7 @@
 #define max_reserverd_len   256
 
 
-#define default_config_path     "/media/psf/tomato/packet/config/msf_rpc_srv.conf"
+#define default_config_path     "/media/psf/tomato/packet/config/msf_agent.conf"
 #define default_pid_path        "/media/psf/tomato/packet/config/msf_rpc_srv.pid"
 #define default_unix_path       "/var/msf_rpc_srv.sock"
 #define default_log_path        "/media/psf/tomato/packet/logger/msf_rpc_srv.log"
@@ -85,8 +82,8 @@ struct  network_ops {
 }__attribute__((__packed__));
 
 struct rx_thread {
-    pthread_t   tid;        /* unique ID id of this thread */
-    s32     thread_idx;
+    pthread_t   tid;
+    s32     thread_idx;/* unique ID id of this thread */
     s8      *thread_name; 
 
     s32     epoll_num;
@@ -181,6 +178,7 @@ struct server {
 
     s32     pack_type;
 
+    s32     stop_listen;
     s32     stop_flags;
     s32     status;     /* server running status now */
 
@@ -226,12 +224,24 @@ struct server {
     pthread_cond_t  init_cond;
 
     s8              reserved[max_reserverd_len];
-}__attribute__((__packed__));
+}MSF_PACKED_MEMORY;
 
+enum mod_idx {
+    MOD_OS,
+    MOD_CONFIG,
+    MOD_SIGNAL,
+    MOD_CMD,
+    MOD_CONN,
+    MOD_THREAD,
+    MOD_NETWORK,
+    MOD_SERVER,
+    MOD_MAX,
+} MSF_PACKED_MEMORY;
+    
+extern struct msf_svc* msf_rpc_module[];
 
 extern struct server *srv;
 
 s32 server_init(void);
-void server_deinit(void);
 
 #endif

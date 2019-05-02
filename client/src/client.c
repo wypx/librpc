@@ -28,7 +28,7 @@ extern s32 thread_init(void);
 extern void thread_deinit(void);
 
 s32 signal_init(void) {
-    signal_handler(SIGHUP,	SIG_IGN);
+    signal_handler(SIGHUP,  SIG_IGN);
     signal_handler(SIGTERM, SIG_IGN);
     signal_handler(SIGPIPE, SIG_IGN);
     return 0;

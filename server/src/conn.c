@@ -12,11 +12,6 @@
 **************************************************************************/
 #include <server.h>
 
-s32 conn_init(void);
-void conn_deinit(void);
-struct conn *conn_new(s32 new_fd, s16 event);
-void conn_free(struct conn* c);
-
 /* Functions managing dictionary of callbacks for pub/sub. */
 static u64 callbackHash(const void *key) {
     return dictGenHashFunction((const u8*)key, sdslen((const sds)key));
@@ -134,6 +129,15 @@ struct conn *conn_find_by_id(u32 cid) {
 }
 
 void conn_deinit(void) {
+
+    u32 conn_idx;
+    struct conn *c;
+
+    for (conn_idx = 0; conn_idx < srv->max_conns; conn_idx++) {
+        c = &srv->conns[conn_idx];
+        sclose(c->fd);
+    }
+
     pthread_spin_destroy(&srv->conn_lock);
     dictRelease(srv->conn_dict);
     sfree(srv->conns);
