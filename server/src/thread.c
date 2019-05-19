@@ -451,7 +451,7 @@ static s32 rx_thread_accept(struct conn *c) {
         msf_memzero(&addr, sizeof(struct sockaddr_storage));
 
         #if defined(HAVE_ACCEPT4) && defined(SOCK_CLOEXEC) && defined(SOCK_NONBLOCK)
-        new_fd = accept4(c->fd, (struct sockaddr*)&addr, addrlen, SOCK_NONBLOCK);
+        new_fd = msf_accept4(c->fd, (struct sockaddr*)&addr, addrlen);
         if (new_fd >= 0 || (errno != EINVAL && errno != ENOSYS)) {
             /* A nonnegative result means that we succeeded, so return.
              * Failing with EINVAL means that an option wasn't supported,
@@ -470,7 +470,7 @@ static s32 rx_thread_accept(struct conn *c) {
          * and truncate surplus zero part.  Only bound sockaddr_un will be really
          * truncated here.
          */
-        new_fd = accept(c->fd, (struct sockaddr*)&addr, &addrlen);
+        new_fd = msf_accept(c->fd, (struct sockaddr*)&addr, &addrlen);
         if (new_fd < 0) {
             if (errno == EINTR)
                 continue;

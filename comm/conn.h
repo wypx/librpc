@@ -29,7 +29,7 @@ enum auth_state {
     authorized,     /* Client is authorized to access service */
     restricted,     /* Client has limited access to service (bandwidth, ...) */
     refused,        /* Client is always refused to access service (i.e. blacklist) */
-} MSF_PACKED_MEMORY;
+};
 
 enum io_state {
     io_init             = 0,
@@ -38,18 +38,18 @@ enum io_state {
     io_write_half       = 3,
     io_write_done       = 4,
     io_close            = 5,
-} MSF_PACKED_MEMORY;
+};
 
 enum rcv_stage {
     stage_recv_bhs      = 0x01,
     stage_recv_data     = 0x02,
     stage_recv_next     = 0x03,
-} MSF_PACKED_MEMORY;
+};
 
 enum snd_stage {
     stage_send_bhs      = 0x01,
     stage_send_data     = 0x02,
-} MSF_PACKED_MEMORY;
+};
 
 struct conn_desc {
     struct msghdr rx_msghdr;
@@ -81,7 +81,7 @@ struct chap_param {
     u32     alg;
     s8      user[MAX_CONN_NAME];
     s8      hash[32];
-} MSF_PACKED_MEMORY;
+};
 
 struct conn_sockopt {
     u32 timedout:1;
@@ -90,7 +90,7 @@ struct conn_sockopt {
     u32 sndlowat:1;
     u32 tcp_nodelay:2; /* Unix socket default disable */
     u32 tcp_nopush:2;
-} MSF_PACKED_MEMORY;
+};
 
 struct conn {
     s32 fd;
@@ -121,7 +121,7 @@ struct conn {
 
     /*for client use*/
     msf_atomic_t msg_seq; /*ack seq num*/
-} MSF_PACKED_MEMORY;
+};
 
 struct cmd {
     u32 cmd_state;
@@ -144,7 +144,7 @@ struct cmd {
     u32     total_len;  /*the total length of buffer*/
     u32     buff_idx;
 
-    s8  cmd_buff[MAX_CONN_CMD_NUM];
-} MSF_PACKED_MEMORY;
+    s8      cmd_buff[MAX_CONN_CMD_NUM];
+};
 
 

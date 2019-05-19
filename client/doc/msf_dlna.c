@@ -4,7 +4,7 @@
 
 #define MSF_MOD_DLNA "DLNA"
 #define MSF_DLNA_LOG(level, ...) \
-    log_write(level, MSF_MOD_DLNA, MSF_FUNC_FILE_LINE, __VA_ARGS__)
+    msf_log_write(level, MSF_MOD_DLNA, MSF_FUNC_FILE_LINE, __VA_ARGS__)
 
 struct upnp_param_t {
     u8  upnp_nat;
@@ -99,8 +99,16 @@ s32 main () {
     msf_mempool_dump(mempool);
 
     msf_mempool_destroy(mempool);
-    
-    rc = client_init(MSF_MOD_DLNA, LOCAL_HOST_V4, SERVER_PORT, dlna_req_scb, dlna_ack_scb);
+
+    struct client_param param;
+    param.name = MSF_MOD_DLNA;
+    param.cid = RPC_DLNA_ID;
+    param.host = LOCAL_HOST_V4;
+    param.port = SERVER_PORT;
+    param.req_scb = dlna_req_scb;
+    param.ack_scb = dlna_ack_scb;
+
+    rc = client_agent_init(&param);
     if (rc < 0) return -1;
 
     msf_memzero(&upnp, sizeof(struct upnp_param_t));
@@ -113,7 +121,7 @@ s32 main () {
     pdu.restload = (s8*)&upnp;
     pdu.restlen = sizeof(struct upnp_param_t);
 
-    rc = client_service(&pdu);
+    rc = client_agent_service(&pdu);
 
     if (rc != RPC_EXEC_SUCC) {
         MSF_DLNA_LOG(DBG_ERROR, "UPnP rpc call service errcode(%d).", rc);
@@ -132,7 +140,7 @@ s32 main () {
         pdu.timeout = MSF_NO_WAIT;
         pdu.dstid = RPC_UPNP_ID;
         pdu.cmd = UPNP_SET_PARAM;
-        rc = client_service(&pdu);
+        rc = client_agent_service(&pdu);
         if (rc != RPC_EXEC_SUCC) {
            MSF_DLNA_LOG(DBG_ERROR, "UPnP rpc call service errcode(%d).", rc);
         } 
@@ -141,14 +149,14 @@ s32 main () {
         pdu.cmd = UPNP_GET_PARAM;
         pdu.dstid = RPC_UPNP_ID;
         pdu.restlen = sizeof(struct upnp_param_t);
-        rc = client_service(&pdu);
+        rc = client_agent_service(&pdu);
         if (rc != RPC_EXEC_SUCC) {
            MSF_DLNA_LOG(DBG_ERROR, "UPnP rpc call service errcode(%d).", rc);
         }
         sleep(2);
     }
 
-    client_deinit();
+    client_agent_deinit();
 
     return 0;
 }

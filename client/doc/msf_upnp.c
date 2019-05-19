@@ -3,7 +3,7 @@
 
 #define MSF_MOD_UPNP "UPNP"
 #define MSF_UPNP_LOG(level, ...) \
-    log_write(level, MSF_MOD_UPNP, MSF_FUNC_FILE_LINE, __VA_ARGS__)
+    msf_log_write(level, MSF_MOD_UPNP, MSF_FUNC_FILE_LINE, __VA_ARGS__)
 
 struct upnp_param_t {
     u8  upnp_nat;
@@ -71,18 +71,26 @@ s32 upnp_ack_scb(s8 *data, u32 len, u32 cmd) {
 s32 main () {
 
     s32 rc = -1;
+
+    struct client_param param;
+    param.name = MSF_MOD_UPNP;
+    param.cid = RPC_UPNP_ID;
+    param.host = LOCAL_HOST_V4;
+    param.port = SERVER_PORT;
+    param.req_scb = upnp_req_scb;
+    param.ack_scb = upnp_ack_scb;
     
     memcpy(upnp.friend_name, MSF_MOD_UPNP, strlen(MSF_MOD_UPNP));
     upnp.upnp_nat = 1;
     upnp.upnp_discovery = 2;
 
-    rc = client_init(MSF_MOD_UPNP, LOCAL_HOST_V4, SERVER_PORT, upnp_req_scb, upnp_ack_scb);
+    rc = client_agent_init(&param);
     if (rc < 0) return -1;
     
     while (1) 
       sleep(2);
 
-    client_deinit();
+    client_agent_deinit();
 
     return 0;
 }

@@ -32,7 +32,7 @@
 enum client_stat  {
     rpc_uninit,
     rpc_inited,
-} MSF_PACKED_MEMORY;
+};
 
 enum buffer_idx {
     buff_zero,
@@ -44,14 +44,14 @@ enum buffer_idx {
     buff_2K,
     buff_4K,
     buff_8K,
-    buff_max,
-}MSF_PACKED_MEMORY;
+    buff_max = 12,
+} ;
 
 enum cluster_role {
     cluster_invalid = 0,
     cluster_master  = 1,
     cluster_slaver  = 2,
-} MSF_PACKED_MEMORY;
+};
 
 struct cluster_node {
     u32 node_id;
@@ -61,7 +61,7 @@ struct cluster_node {
 
     s8 node_ipv4[64];
     s8 node_ipv6[64];
-} MSF_PACKED_MEMORY;
+};
 
 struct client {
     u32     stop_flag;
@@ -89,13 +89,22 @@ struct client {
     struct list_head free_cmd_list[buff_max];
 
     struct timeval lasttime;
-} MSF_PACKED_MEMORY;
+};
 
 extern struct client *rpc;
 #define MSF_RPC_LOG(level, ...) \
-    log_write(level, rpc->cli_conn.name, MSF_FUNC_FILE_LINE, __VA_ARGS__)
+    msf_log_write(level, rpc->cli_conn.name, MSF_FUNC_FILE_LINE, __VA_ARGS__)
 
-s32 client_init(s8 *name, s8 *host, s8 *port, srvcb req_scb, srvcb ack_scb);
-s32 client_deinit(void);
-s32 client_service(struct basic_pdu *pdu);
+struct client_param {
+    u32 cid;
+    s8 *name;
+    s8 *host;
+    s8 *port;
+    srvcb req_scb;
+    srvcb ack_scb;
+};
+
+s32 client_agent_init(struct client_param *param);
+s32 client_agent_deinit(void);
+s32 client_agent_service(struct basic_pdu *pdu);
 

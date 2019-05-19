@@ -36,7 +36,7 @@ MSF_LIBRARY_INITIALIZER(process_init, 101) {
     s8 log_path[256] = { 0 };
     snprintf(log_path, sizeof(log_path)-1, "logger/%s.log", "AGENT");
 
-    if (log_init(log_path) < 0) {
+    if (msf_log_init(log_path) < 0) {
       return;
     }
 

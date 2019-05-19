@@ -27,10 +27,34 @@ extern struct cmd* cmd_pop_ack(void);
 extern s32 thread_init(void);
 extern void thread_deinit(void);
 
+void sig_handler(s32 sig) {
+ 
+    switch (sig) {
+        case SIGBUS:
+            MSF_RPC_LOG(DBG_ERROR, "Got sigbus error.");
+            raise(SIGKILL);
+            break;
+         case SIGSEGV:
+            MSF_RPC_LOG(DBG_ERROR, "Got sigsegv error.");
+            break;
+          case SIGILL:
+            MSF_RPC_LOG(DBG_ERROR, "Got sigill error.");
+            break;
+          default:
+            break;
+    }
+}
+
 s32 signal_init(void) {
+
+    msf_enable_coredump();
+
     signal_handler(SIGHUP,  SIG_IGN);
     signal_handler(SIGTERM, SIG_IGN);
     signal_handler(SIGPIPE, SIG_IGN);
+    signal_handler(SIGBUS, sig_handler);
+    signal_handler(SIGSEGV, sig_handler);
+    signal_handler(SIGILL, sig_handler);
     return 0;
 }
 
@@ -38,6 +62,7 @@ s32 network_init(void) {
 
     s32 rc = -1;
     s16 event = EPOLLIN;
+    s8 unix_path[128] = { 0 };
 
     struct conn *clic = NULL;
     struct conn *evc = NULL;
@@ -55,10 +80,9 @@ s32 network_init(void) {
 
     if (0 == msf_strncmp(rpc->srv_host, LOCAL_HOST_V4, strlen(LOCAL_HOST_V4))
      || 0 == msf_strncmp(rpc->srv_host, LOCAL_HOST_V4, strlen(LOCAL_HOST_V6))) {
-        if (rpc->cli_conn.cid == RPC_UPNP_ID)
-            clic->fd = msf_connect_unix_socket(MSF_RPC_UNIX_UPNP, MSF_RPC_UNIX_SERVER);
-        else
-            clic->fd = msf_connect_unix_socket(MSF_RPC_UNIX_DLNA, MSF_RPC_UNIX_SERVER);
+        snprintf(unix_path, sizeof(unix_path) - 1, 
+            MSF_RPC_UNIX_FORMAT, rpc->cli_conn.name);
+        clic->fd = msf_connect_unix_socket(unix_path, MSF_RPC_UNIX_SERVER);
     } else {
         clic->fd = msf_connect_host(rpc->srv_host, rpc->srv_port);
     }
@@ -72,41 +96,36 @@ s32 network_init(void) {
         return -1;
     }
 
-    MSF_RPC_LOG(DBG_INFO,  "Network init client fd(%u)", clic->fd);
-    MSF_RPC_LOG(DBG_INFO,  "Network init event fd(%u)", evc->fd);
+    MSF_RPC_LOG(DBG_INFO,  "Network init client fd(%u).", clic->fd);
+    MSF_RPC_LOG(DBG_INFO,  "Network init event fd(%u).", evc->fd);
 
     usleep(500);
     
     return 0;
 }
 
-s32 client_init(s8 *name, s8 *host, s8 *port, srvcb req_scb, srvcb ack_scb) {
+s32 client_agent_init(struct client_param *param) {
 
-    if (unlikely(!name || !host || !port || !req_scb || !ack_scb)) {
+    if (unlikely(!param || !param->name || !param->host ||
+            !param->port || !param->req_scb || !param->ack_scb)) {
         MSF_RPC_LOG(DBG_ERROR, "RPC client init param invalid");
         return -1;
     }
 
     s8 log_path[256] = { 0 };
-
-    snprintf(log_path, sizeof(log_path)-1, RPC_LOG_FILE_PATH, name);
-    log_init(log_path);
+    snprintf(log_path, sizeof(log_path)-1, RPC_LOG_FILE_PATH, param->name);
+    msf_log_init(log_path);
 
     msf_memzero(rpc, sizeof(struct client));
     rpc->state = rpc_uninit;
     rpc->rx_tid = ~0;
     rpc->tx_tid = ~0;
-    if (strstr(name, "UPNP")) {
-        rpc->cli_conn.cid = RPC_UPNP_ID;
-    } else if (strstr(name, "DLNA")) {
-        rpc->cli_conn.cid = RPC_DLNA_ID;
-    }
-    
-    rpc->req_scb = req_scb;
-    rpc->ack_scb = ack_scb;
-    memcpy(rpc->cli_conn.name, name, min(strlen(name), (size_t)MAX_CONN_NAME));
-    memcpy(rpc->srv_host, host, min(strlen(host), sizeof(rpc->srv_host)));
-    memcpy(rpc->srv_port, port, min(strlen(port), sizeof(rpc->srv_port)));
+    rpc->cli_conn.cid = param->cid;
+    rpc->req_scb = param->req_scb;
+    rpc->ack_scb = param->ack_scb;
+    memcpy(rpc->cli_conn.name, param->name, min(strlen(param->name), (size_t)MAX_CONN_NAME));
+    memcpy(rpc->srv_host, param->host, min(strlen(param->host), sizeof(rpc->srv_host)));
+    memcpy(rpc->srv_port, param->port, min(strlen(param->port), sizeof(rpc->srv_port)));
 
     if (msf_timer_init() < 0) goto error;
 
@@ -131,11 +150,11 @@ s32 client_init(s8 *name, s8 *host, s8 *port, srvcb req_scb, srvcb ack_scb) {
     return 0;
 error:
     rpc->state = rpc_uninit;
-    client_deinit();
+    client_agent_deinit();
     return -1;
 }
 
-s32 client_deinit(void) {
+s32 client_agent_deinit(void) {
 
     msf_timer_destroy();
     thread_deinit();
@@ -144,7 +163,7 @@ s32 client_deinit(void) {
     return 0;
 }
 
-s32 client_service(struct basic_pdu *pdu) {
+s32 client_agent_service(struct basic_pdu *pdu) {
 
     struct basic_head *bhs = NULL;
     struct cmd *new_cmd = NULL;

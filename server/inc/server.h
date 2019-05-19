@@ -27,7 +27,7 @@
 
 #define MSF_MOD_AGENT "AGENT"
 #define MSF_AGENT_LOG(level, ...) \
-    log_write(level, MSF_MOD_AGENT, MSF_FUNC_FILE_LINE, __VA_ARGS__)
+    msf_log_write(level, MSF_MOD_AGENT, MSF_FUNC_FILE_LINE, __VA_ARGS__)
 
 #define max_config_len      128
 #define MAX_CONN_NUM        1024
@@ -37,12 +37,10 @@
 #define max_unix_path_len   256
 #define max_reserverd_len   256
 
-
-#define default_config_path     "/media/psf/tomato/packet/config/msf_agent.conf"
-#define default_pid_path        "/media/psf/tomato/packet/config/msf_rpc_srv.pid"
-#define default_unix_path       "/var/msf_rpc_srv.sock"
+#define default_config_path     "config/msf_agent.conf"
+#define default_pid_path        "config/msf_rpc_srv.pid"
+#define default_unix_path       "/var/msf_agent.sock"
 #define default_log_path        "/media/psf/tomato/packet/logger/msf_rpc_srv.log"
-
 
 /* enum of index available in the rpc_agent.conf */
 enum config_idx {
@@ -70,7 +68,7 @@ enum config_idx {
 struct config_option {
     enum config_idx id;
     s8 value[max_config_len];
-} __attribute__((__packed__));
+} MSF_PACKED_MEMORY;
 
 struct  network_ops {
     s32 (*s_sock_init)(s8 *data, u32 len);
@@ -79,7 +77,7 @@ struct  network_ops {
     s32 (*s_write_cb)(s8 *data, u32 len);
     s32 (*s_drain_cb)(s8 *data, u32 len);
     s32 (*s_close_cb)(s8 *data, u32 len);
-}__attribute__((__packed__));
+} MSF_PACKED_MEMORY;
 
 struct rx_thread {
     pthread_t   tid;
@@ -90,7 +88,7 @@ struct rx_thread {
     s32     epoll_fd;
     s32     event_fd;
     s32     timer_fd;
-} __attribute__((__packed__));
+} MSF_PACKED_MEMORY;
 
 struct tx_thread {
     pthread_t   tid;        /* unique ID id of this thread */
@@ -101,7 +99,7 @@ struct tx_thread {
     sem_t       sem;
     pthread_spinlock_t tx_cmd_lock;
     struct list_head tx_cmd_list; /* queue of tx connections to handle*/
-} __attribute__((__packed__));
+} MSF_PACKED_MEMORY;
 
 
 struct srv_listen {
@@ -139,7 +137,7 @@ struct srv_listen {
 #if (HAVE_TCP_FASTOPEN)
     s32 fastopen;
 #endif
-} __attribute__((__packed__));
+} MSF_PACKED_MEMORY;
 
 
 struct server {
@@ -225,20 +223,6 @@ struct server {
 
     s8              reserved[max_reserverd_len];
 }MSF_PACKED_MEMORY;
-
-enum mod_idx {
-    MOD_OS,
-    MOD_CONFIG,
-    MOD_SIGNAL,
-    MOD_CMD,
-    MOD_CONN,
-    MOD_THREAD,
-    MOD_NETWORK,
-    MOD_SERVER,
-    MOD_MAX,
-} MSF_PACKED_MEMORY;
-    
-extern struct msf_svc* msf_rpc_module[];
 
 extern struct server *srv;
 

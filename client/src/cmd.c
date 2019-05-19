@@ -117,7 +117,7 @@ void cmd_new_default(struct cmd *new_cmd) {
         MSF_RPC_LOG(DBG_DEBUG, "Failed to new one cmd.");
         return;
     }
-    MSF_RPC_LOG(DBG_DEBUG, "Cmd total_len(%u).", new_cmd->total_len);
+    MSF_RPC_LOG(DBG_INFO, "Cmd total_len(%u).", new_cmd->total_len);
     msf_memzero(new_cmd->buffer, new_cmd->total_len);
     msf_memzero(&new_cmd->bhs, sizeof(struct basic_head));
     new_cmd->ref_cnt = 0;
@@ -148,13 +148,13 @@ struct cmd *cmd_new(s32 data_len) {
 
     if (list_empty(&rpc->free_cmd_list[idx])) {
 
-        MSF_RPC_LOG(DBG_DEBUG, "Need to new cmd item.");
+        MSF_RPC_LOG(DBG_INFO, "Need to new cmd item.");
 
         new_cmd = cmd_new_prealloc(idx);
         if (unlikely(!new_cmd)) {
             return NULL;
         }
-    }else {
+    } else {
         new_cmd = list_first_entry_or_null(&rpc->free_cmd_list[idx], 
                         struct cmd, cmd_to_list);
         if (new_cmd) {
@@ -170,13 +170,13 @@ struct cmd *cmd_new(s32 data_len) {
 
 void cmd_push_ack(struct cmd *ack_cmd) {
     pthread_spin_lock(&rpc->cli_conn.ack_cmd_lock);
-    list_add_tail(&ack_cmd->cmd_to_list, &rpc->cli_conn.ack_cmd_list);
+    list_add_tail(&ack_cmd->cmd_to_list, &(rpc->cli_conn.ack_cmd_list));
     pthread_spin_unlock(&rpc->cli_conn.ack_cmd_lock);
 }
 
 void cmd_push_tx(struct cmd *tx_cmd)  {
     pthread_spin_lock(&rpc->cli_conn.tx_cmd_lock);
-    list_add_tail(&tx_cmd->cmd_to_list, &rpc->cli_conn.tx_cmd_list);
+    list_add_tail(&tx_cmd->cmd_to_list, &(rpc->cli_conn.tx_cmd_list));
     pthread_spin_unlock(&rpc->cli_conn.tx_cmd_lock);
 }
 
