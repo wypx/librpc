@@ -1,10 +1,10 @@
 #!/bin/sh
-#################################
+########################################################
 # Makefile for libipc.so
 #  by luotang
 #  2017.8.9
-#  project github:
-#################################
+#  project github:https://github.com/wypx/librpc/client
+########################################################
 ROOTDIR = ../../..
 include $(ROOTDIR)/Rules.make
 

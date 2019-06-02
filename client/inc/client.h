@@ -29,12 +29,12 @@
 #define RPC_LOG_FILE_PATH       "logger/%s.log"
 
 
-enum client_stat  {
+enum CLIENT_STATE  {
     rpc_uninit,
     rpc_inited,
 };
 
-enum buffer_idx {
+enum BUFFER_IDX {
     buff_zero,
     buff_64B,
     buff_128B,

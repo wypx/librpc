@@ -1,10 +1,10 @@
 #!/bin/sh
-#################################
-# Makefile for libmsf_rpc_srv.so
+########################################################
+# Makefile for libmsf_agent
 #  by luotang
 #  2018.3.18
-#  project github:
-#################################
+#  project github: https://github.com/wypx/librpc/server
+########################################################
 ROOTDIR = ../../..
 include $(ROOTDIR)/Rules.make
 

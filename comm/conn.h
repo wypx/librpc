@@ -13,6 +13,7 @@
 #include <msf_atomic.h>
 #include <msf_thread.h>
 #include <msf_event.h>
+#include <msf_file.h>
 #include <protocol.h>
 #include <sds.h>
 
@@ -25,13 +26,13 @@
 
 typedef s32 (*srvcb)(s8 *data, u32 len, u32 cmd);
 
-enum auth_state {
+enum AUTH_STATE {
     authorized,     /* Client is authorized to access service */
     restricted,     /* Client has limited access to service (bandwidth, ...) */
     refused,        /* Client is always refused to access service (i.e. blacklist) */
 };
 
-enum io_state {
+enum IO_STATE {
     io_init             = 0,
     io_read_half        = 1,
     io_read_done        = 2,
@@ -40,13 +41,13 @@ enum io_state {
     io_close            = 5,
 };
 
-enum rcv_stage {
+enum RCV_STAGE {
     stage_recv_bhs      = 0x01,
     stage_recv_data     = 0x02,
     stage_recv_next     = 0x03,
 };
 
-enum snd_stage {
+enum SND_STAGE {
     stage_send_bhs      = 0x01,
     stage_send_data     = 0x02,
 };
@@ -58,11 +59,11 @@ struct conn_desc {
     struct iovec rx_iov[MAX_CONN_IOV_SLOT]; 
     struct iovec tx_iov[MAX_CONN_IOV_SLOT]; 
 
-    enum snd_stage send_stage;
-    enum rcv_stage recv_stage;
+    enum SND_STAGE send_stage;
+    enum RCV_STAGE recv_stage;
 
-    enum io_state send_state;
-    enum io_state recv_state;
+    enum IO_STATE send_state;
+    enum IO_STATE recv_state;
 
     u32 rx_iosize;
     u32 rx_iovcnt;
