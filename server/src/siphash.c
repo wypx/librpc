@@ -360,3 +360,23 @@ int main(void) {
 }
 
 #endif
+
+#include <msf_utils.h>
+
+#if 0
+static unsigned long hash_fun(u32 laddr, u32 raddr, u16 lport, u16 rport) {
+    unsigned long ret;
+
+#if (__amd64__ || __amd64)
+    ret = ((u64) laddr << 32) | raddr;
+    ret ^= (((u64)) lport << 48) | (((u64)) rport << 32) |
+            (((u64)) lport << 16) | rport;
+#elif (__i386__ || __i386)
+    ret = laddr ^ raddr;
+    ret ^= (lport << 16) | rport;
+#endif 
+
+    return ret;
+}
+#endif
+

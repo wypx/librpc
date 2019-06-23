@@ -52,7 +52,7 @@ s32 config_init(void) {
         return -1;
 
     /* only error if file exists or using -f */
-    if (access(srv->conf_file, F_OK) != 0) {
+    if (msf_access(srv->conf_file, F_OK) != 0) {
         MSF_AGENT_LOG(DBG_ERROR, "Config file %s not exist.", srv->conf_file);
         return -1;
     }

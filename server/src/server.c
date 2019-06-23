@@ -39,12 +39,11 @@ MSF_LIBRARY_INITIALIZER(process_init, 101) {
     if (msf_log_init(log_path) < 0) {
       return;
     }
-
 }
 
 MSF_LIBRARY_INITIALIZER(param_init, 102) {
 
-    srv->pid = getpid();
+    srv->pid = msf_getpid();
     srv->pid_file = default_pid_path;
     srv->conf_file = default_config_path;
     srv->log_file = default_log_path;
