@@ -25,7 +25,7 @@ make component communicating easier,using epoll event with unix socket and inter
  * 支持主从节点故障迁移（zookeeper，redis etc）（待实现）
  * 支持客户端协议透明通信代理（待实现）
  
-![libmsf](http://luotang.me/wp-content/uploads/2018/02/cpluff_architecture.png "libmsf")
+![librpc](doc/rpc.jpg "librpc")
 
 ## __快速开始__
 ### 安装环境
