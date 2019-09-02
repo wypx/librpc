@@ -26,8 +26,7 @@
 
 #define HAVE_GCC_ATOMICS        1
 #define MSF_HAVE_EVENTFD        1
-#define RPC_LOG_FILE_PATH       "logger/%s.log"
-
+#define RPC_LOG_FILE_PATH       "%s.log"
 
 enum CLIENT_STATE  {
     rpc_uninit,

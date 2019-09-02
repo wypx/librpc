@@ -37,33 +37,33 @@ static inline void rx_wakeup_write(struct conn *c);
 
 
 void register_thread_initialized(void) {
-    pthread_mutex_lock(&srv->init_lock);
+    msf_mutex_lock(&srv->init_lock);
     srv->init_count++;
-    pthread_cond_signal(&srv->init_cond);
-    pthread_mutex_unlock(&srv->init_lock);
+    msf_cond_signal(&srv->init_cond);
+    msf_mutex_unlock(&srv->init_lock);
 }
 
 void wait_for_thread_registration(void) {
 
-	/* Wait for all the threads to set themselves up before returning. */
-	pthread_mutex_lock(&srv->init_lock);
-	while (srv->init_count < srv->max_thread * 2) {
-        pthread_cond_wait(&srv->init_cond, &srv->init_lock);
+    /* Wait for all the threads to set themselves up before returning. */
+    msf_mutex_lock(&srv->init_lock);
+    while (srv->init_count < srv->max_thread * 2) {
+        msf_cond_wait(&srv->init_cond, &srv->init_lock);
     }
-	pthread_mutex_unlock(&srv->init_lock);
+    msf_mutex_unlock(&srv->init_lock);
 }
 
 
 static inline void rx_wakeup_write(struct conn *c) {
 
     s32 value;
-
     if (!list_empty(&c->tx->tx_cmd_list)) {
-        sem_getvalue (&c->tx->sem, &value);
+        msf_sem_getvalue(&c->tx->sem, &value);
         if (0 == value) {
-            MSF_AGENT_LOG(DBG_INFO, "Try to wakeup tx thread(%p) thread_idx(%u).", 
+            MSF_AGENT_LOG(DBG_INFO,
+                "Try to wakeup tx thread(%p) thread_idx(%u).", 
                 c->tx, c->tx->thread_idx);
-            sem_post(&c->tx->sem);
+            msf_sem_post(&c->tx->sem);
         }
     }
 
@@ -107,8 +107,9 @@ void rx_handle_result(struct conn *c, s32 rc) {
         c->desc.recv_state = io_close;
     } else if (rc < 0) {
         MSF_AGENT_LOG(DBG_ERROR, "Recvmsg peer(%s) fd(%d) errno(%d).", c->name, c->fd, errno);
-        if (errno == EINTR || errno == EAGAIN ||
-           errno == EWOULDBLOCK) {
+        if (msf_errno == MSF_EINTR ||
+            msf_errno == MSF_EAGAIN ||
+            msf_errno== MSF_EWOULDBLOCK) {
             c->desc.recv_state = io_read_half;
             return;
         }
@@ -282,7 +283,7 @@ static void rx_thread_read_bhs(struct conn *c) {
     conn_add_rx_iovec(c, &c->bhs, sizeof(struct basic_head));
 
     init_msghdr(msg, c->desc.rx_iov, c->desc.rx_iovcnt);
-    rc = msf_recvmsg(c->fd, msg);
+    rc = msf_recvmsg_v2(c->fd, msg, MSG_NOSIGNAL | MSG_WAITALL);
 
     rx_handle_result(c, rc);
 
@@ -332,7 +333,7 @@ static void rx_thread_read_data(struct conn *c) {
     conn_add_rx_iovec(c, &new_cmd->cmd_buff, bhs->datalen);
 
     init_msghdr(msg, c->desc.rx_iov, c->desc.rx_iovcnt);
-    rc = msf_recvmsg(c->fd, msg);
+    rc = msf_recvmsg_v2(c->fd, msg, MSG_NOSIGNAL | MSG_WAITALL);
 
     MSF_AGENT_LOG(DBG_INFO, "Recv data len is %u.", rc);
 
@@ -353,6 +354,7 @@ static void rx_thread_read_data(struct conn *c) {
                     bhs->errcode = RPC_EXEC_SUCC;
                     msf_memzero(new_cmd->cmd_buff+sizeof(struct basic_head),
                         sizeof(struct login_pdu)-sizeof(struct basic_head));
+                    srv->cur_conns++;
                 }
             }
         }
@@ -440,8 +442,8 @@ static void rx_thread_read_loop(struct conn *c) {
 static s32 rx_thread_accept(struct conn *c) {
 
     s16 event = EPOLLIN | EPOLLERR | EPOLLRDHUP;
-    s32 stop = false; 
-    s32 new_fd = invalid_socket;
+    s32 stop = MSF_FALSE; 
+    s32 new_fd = MSF_INVALID_SOCKET;
     struct sockaddr_storage addr;
     socklen_t addrlen = sizeof(struct sockaddr_storage);
 
@@ -452,7 +454,7 @@ static s32 rx_thread_accept(struct conn *c) {
 
         #if defined(HAVE_ACCEPT4) && defined(SOCK_CLOEXEC) && defined(SOCK_NONBLOCK)
         new_fd = msf_accept4(c->fd, (struct sockaddr*)&addr, addrlen);
-        if (new_fd >= 0 || (errno != EINVAL && errno != ENOSYS)) {
+        if (new_fd >= 0 ||(msf_errno != MSF_EINVAL && msf_errno != MSF_ENOSYS)) {
             /* A nonnegative result means that we succeeded, so return.
              * Failing with EINVAL means that an option wasn't supported,
              * and failing with ENOSYS means that the syscall wasn't
@@ -472,48 +474,52 @@ static s32 rx_thread_accept(struct conn *c) {
          */
         new_fd = msf_accept(c->fd, (struct sockaddr*)&addr, &addrlen);
         if (new_fd < 0) {
-            if (errno == EINTR)
+            if (msf_errno == MSF_EINTR)
                 continue;
 
-            MSF_AGENT_LOG(DBG_ERROR, "Accept failed, errno(%d)(%s).",
-                        errno, strerror(errno));
+            MSF_AGENT_LOG(DBG_ERROR,
+                        "Accept failed, errno(%d)(%s).",
+                        msf_errno, strerror(msf_errno));
 
-            if (errno == EAGAIN || errno == EWOULDBLOCK || errno == ECONNABORTED) {
-                /* these are transient, so don't log anything */
-                stop = true;
-                MSF_AGENT_LOG(DBG_ERROR, "Accept blocked now, try again.");
-            } else if (errno == EMFILE || errno == ENFILE) {
+            /* these are transient, so don't log anything */
+            if (msf_errno == MSF_EAGAIN      ||
+                msf_errno == MSF_EWOULDBLOCK ||
+                msf_errno == MSF_ECONNABORTED) {
+                stop = MSF_TRUE;
+                MSF_AGENT_LOG(DBG_ERROR,
+                    "Accept blocked now, try again.");
+            } else if (msf_errno == MSF_EMFILE ||
+                       msf_errno == MSF_ENFILE) {
                 //进程的上限EMFILE
                 //系统的上限ENFILE
-                MSF_AGENT_LOG(DBG_INFO, "Too many open connections.");
-                //accept_new_conns(s, false);
-                srv->stop_listen = true;
-                //
-                stop = true;
+                MSF_AGENT_LOG(DBG_INFO,
+                    "Too many open connections.");
+                srv->net_ops->s_listen_cb(0);
+                stop = MSF_TRUE;
             } else {
                 perror("accept()");
-                stop = true;
+                stop = MSF_TRUE;
             }
             break;
         }
     }while(stop);
 
-    if (new_fd < 0) return -1;
+    if (new_fd < 0) return MSF_ERR;
 
     new_conn = conn_new(new_fd, event);
     if (unlikely(!new_conn)) {
         sclose(new_fd);
-        return -1;
+        return MSF_ERR;
     }
 
-    return 0;
+    return MSF_OK;
 }
 
 void * listen_thread_worker(void *arg) {
 
-    s32 rc = -1;
+    s32 rc = MSF_ERR;
     s32 idx;
-    s32 nfds = invalid_socket;
+    s32 nfds = MSF_INVALID_SOCKET;
     struct epoll_event events[max_epoll_event];
     struct conn *c;
 
@@ -574,7 +580,7 @@ void * mgt_thread_worker(void *arg) {
 
     while (!srv->stop_flags) {
 
-        sem_wait_i(&srv->mgt_sem, MSF_WAIT_FOREVER);
+        msf_sem_wait(&srv->mgt_sem, MSF_WAIT_FOREVER);
 
         MSF_AGENT_LOG(DBG_INFO, "Managent thread do somthing....");
 
@@ -588,14 +594,14 @@ static void *rx_thread_worker(void *arg) {
 
     struct rx_thread *rx = (struct rx_thread *)arg;
 
-    s32 rc = -1;
+    s32 rc = MSF_ERR;
     s32 idx;
-    s32 nfds = invalid_socket;
+    s32 nfds = MSF_INVALID_SOCKET;
     struct epoll_event events[max_epoll_event];
     struct conn *c;
 
     s8 rx_name[32] = { 0 };
-    snprintf(rx_name, sizeof(rx_name)-1, "rpc_rx_%d", rx->thread_idx+1);
+    msf_snprintf(rx_name, sizeof(rx_name)-1, "rpc_rx_%d", rx->thread_idx+1);
     msf_thread_name(rx_name);
 
     thread_pin_to_cpu(rx->thread_idx+1);
@@ -660,19 +666,19 @@ static void * tx_thread_worker(void *arg) {
 
     while (!srv->stop_flags) {
 
-        sem_wait_i(&tx->sem, MSF_WAIT_FOREVER);
+        msf_sem_wait(&tx->sem, MSF_WAIT_FOREVER);
 
         MSF_AGENT_LOG(DBG_INFO, "TX thread try to get one cmd.");
 
-        pthread_spin_lock(&tx->tx_cmd_lock);
+        msf_spin_lock(&tx->tx_cmd_lock);
         if (list_empty(&tx->tx_cmd_list)) {
-            pthread_spin_unlock(&tx->tx_cmd_lock);
+            msf_spin_unlock(&tx->tx_cmd_lock);
             continue;
         }
 
         new_cmd = list_first_entry_or_null(&tx->tx_cmd_list, 
                                              struct cmd, cmd_to_list);
-        pthread_spin_unlock(&tx->tx_cmd_lock);
+        msf_spin_unlock(&tx->tx_cmd_lock);
 
         if (unlikely(!new_cmd)) {
             MSF_AGENT_LOG(DBG_ERROR, "Tx thread fail to pop one cmd.");
@@ -695,7 +701,7 @@ static void * tx_thread_worker(void *arg) {
             conn_add_tx_iovec(c, &new_cmd->cmd_buff, new_cmd->bhs.datalen);
         }
         init_msghdr(&c->desc.tx_msghdr, c->desc.tx_iov, c->desc.tx_iovcnt);
-        rc = msf_sendmsg(c->fd, &c->desc.tx_msghdr);
+        rc = msf_sendmsg_v2(c->fd, &c->desc.tx_msghdr, MSG_NOSIGNAL | MSG_WAITALL);
 
         MSF_AGENT_LOG(DBG_INFO, "Sendmsg fd(%d) ret(%d).", c->fd, rc);
 
@@ -728,7 +734,7 @@ s32 rx_thread_init(void)
         rx->epoll_fd = msf_epoll_create();
         if (rx->epoll_fd < 0) return -1;
 
-        rc = pthread_spawn(&rx->tid, rx_thread_worker, rx);
+        rc = msf_pthread_spawn(&rx->tid, rx_thread_worker, rx);
         if (rc < 0) return -1;
     }
     return 0;
@@ -744,7 +750,7 @@ s32 tx_thread_init(void) {
     srv->tx_threads = calloc(srv->max_thread, sizeof(struct tx_thread));
     if (!srv->tx_threads) {
         MSF_AGENT_LOG(DBG_INFO, "Can't allocate tx thread descriptors.");
-        return -1;
+        return MSF_ERR;
     }
 
      /* Create threads after we've done all the libevent setup. */
@@ -752,14 +758,14 @@ s32 tx_thread_init(void) {
         tx = &srv->tx_threads[idx];
         tx->thread_idx = idx;
         INIT_LIST_HEAD(&tx->tx_cmd_list);
-        sem_init(&tx->sem, 0, 0);
-        pthread_spin_init(&tx->tx_cmd_lock, 0);
+        msf_sem_init(&tx->sem);
+        msf_spin_init(&tx->tx_cmd_lock);
 
-        rc = pthread_spawn(&tx->tid, tx_thread_worker, tx);
-        if (rc < 0) return -1;
+        rc = msf_pthread_spawn(&tx->tid, tx_thread_worker, tx);
+        if (rc < 0) return MSF_ERR;
     }
 
-    return 0;
+    return MSF_OK;
 }
 
 s32 listen_thread_init(void) {
@@ -767,40 +773,48 @@ s32 listen_thread_init(void) {
     s32 rc;
 
     srv->listen_ep_fd = msf_epoll_create();
-    if (srv->listen_ep_fd < 0) return -1;
+    if (srv->listen_ep_fd < 0) return MSF_ERR;
 
-    rc = pthread_spawn(&srv->listen_tid, listen_thread_worker, NULL);
-    if (rc < 0) return -1;
+    rc = msf_pthread_spawn(&srv->listen_tid, listen_thread_worker, NULL);
+    if (rc < 0) return MSF_ERR;
 
-    return 0;
+    return MSF_OK;
 }
 
 s32 mgt_thread_init(void) {
 
-    s32 rc = -1;
+    s32 rc = MSF_ERR;
 
-    sem_init(&srv->mgt_sem, 0, 0);
+    msf_sem_init(&srv->mgt_sem);
 
-    rc = pthread_spawn(&srv->mgt_tid, mgt_thread_worker, NULL);
-    if (rc < 0) return -1;
+    rc = msf_pthread_spawn(&srv->mgt_tid, mgt_thread_worker, NULL);
+    if (rc < 0) return MSF_ERR;
 
-    return 0;
+    return MSF_OK;
 
 }
 
 s32 thread_init(void) {
 
-    if (rx_thread_init() < 0) return -1;
+    if (rx_thread_init() < 0) return MSF_ERR;
 
-    if (tx_thread_init() < 0) return -1;
+    MSF_AGENT_LOG(DBG_DEBUG, "RX thread init sucessful.");
+
+    if (tx_thread_init() < 0) return MSF_ERR;
+
+    MSF_AGENT_LOG(DBG_DEBUG, "TX thread init sucessful.");
 
     wait_for_thread_registration();
 
-    if (listen_thread_init() < 0) return -1;
+    MSF_AGENT_LOG(DBG_DEBUG, "RX thread init ok.");
 
-    if (mgt_thread_init() < 0) return -1;
+    if (listen_thread_init() < 0) return MSF_ERR;
 
-    return 0;
+    MSF_AGENT_LOG(DBG_DEBUG, "RX listen thread init sucessful.");
+
+    if (mgt_thread_init() < 0) return MSF_ERR;
+
+    return MSF_OK;
 }
 
 void thread_deinit(void) {
@@ -824,7 +838,7 @@ void thread_deinit(void) {
     if (srv->tx_threads) {
         for (idx = 0; idx < srv->max_thread; idx++) {
             tx = &(srv->tx_threads[idx]);
-            sem_destroy(&tx->sem);
+            msf_sem_destroy(&tx->sem);
         }
         sfree(srv->tx_threads);
     }
@@ -835,7 +849,7 @@ void thread_deinit(void) {
 
     MSF_AGENT_LOG(DBG_DEBUG, "Listen thread exit sucessful.");
 
-    sem_destroy(&srv->mgt_sem);
+    msf_sem_destroy(&srv->mgt_sem);
 
     MSF_AGENT_LOG(DBG_DEBUG, "Mgt thread exit sucesful.");
 }

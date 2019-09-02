@@ -10,12 +10,16 @@
 * and/or fitness for purpose.
 *
 **************************************************************************/
+#include <msf_errno.h>
 #include <msf_atomic.h>
+#include <msf_process.h>
 #include <msf_thread.h>
 #include <msf_event.h>
 #include <msf_file.h>
+#include <msf_sem.h>
 #include <protocol.h>
 #include <sds.h>
+#include <limits.h>             /* IOV_MAX */
 
 #define MAX_CONN_NAME       32
 #define MAX_CONN_IOV_SLOT   8
@@ -82,6 +86,28 @@ struct chap_param {
     u32     alg;
     s8      user[MAX_CONN_NAME];
     s8      hash[32];
+};
+
+struct rx_thread {
+    pthread_t   tid;
+    s32     thread_idx;/* unique ID id of this thread */
+    s8      *thread_name; 
+
+    s32     epoll_num;
+    s32     epoll_fd;
+    s32     event_fd;
+    s32     timer_fd;
+};
+
+struct tx_thread {
+    pthread_t   tid;        /* unique ID id of this thread */
+    s32         thread_idx;
+    sem_t       *thread_sem;
+    s8          *thread_name;
+
+    sem_t       sem;
+    pthread_spinlock_t tx_cmd_lock;
+    struct list_head tx_cmd_list; /* queue of tx connections to handle*/
 };
 
 struct conn_sockopt {

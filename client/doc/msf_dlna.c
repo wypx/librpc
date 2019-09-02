@@ -69,7 +69,7 @@ s32 dlna_ack_scb(s8 *data, u32 len, u32 cmd) {
 s32 main () {
 
     s32 rc = -1;
-    s32 reg_mr = true;
+    s32 reg_mr = MSF_TRUE;
     
     struct msf_mempool *mempool = NULL;
 

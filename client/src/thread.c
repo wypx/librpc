@@ -24,8 +24,10 @@ extern struct cmd* cmd_pop_tx(void);
 extern struct cmd* cmd_pop_ack(u32 seq);
 
 void conn_free(struct conn *c) {
+    msf_event_del(rpc->rx_evt_base, rpc->rx_evt);
     msf_drain_fd(c->fd, 256);
     sclose(c->fd);
+    rpc->state = rpc_uninit;
 }
 
 void conn_add_tx_iovec(struct conn *c, void *buf, u32 len) {
@@ -98,7 +100,7 @@ void tx_handle_result(struct conn *c, s32 rc) {
     }
 }
 
-static s32 login_init(void) {
+s32 login_init(void) {
 
     struct basic_head *bhs = NULL;
     struct login_pdu *login = NULL;
@@ -221,7 +223,7 @@ s32 rx_thread_handle_ack_data(struct conn *c, struct cmd *ack_cmd) {
         //cmd_free(ack_cmd);
         //return -1;
     }
-    sem_post(&ack_cmd->ack_sem);
+    msf_sem_post(&ack_cmd->ack_sem);
     return 0;
 }
 
@@ -424,7 +426,7 @@ static void rx_thread_read_bhs(struct conn *c) {
         rx_thread_map_bhs(c);
     }
 
-    rc = msf_recvmsg(c->fd, &c->desc.rx_msghdr);
+    rc = msf_recvmsg_v2(c->fd, &c->desc.rx_msghdr, MSG_NOSIGNAL | MSG_WAITALL);
 
     rx_handle_result(c, rc);
 
@@ -450,7 +452,7 @@ static void rx_thread_read_data(struct conn *c) {
 
     MSF_RPC_LOG(DBG_INFO, "Read data len is %u.", bhs->datalen);
 
-    rc = msf_recvmsg(c->fd, &c->desc.rx_msghdr);
+    rc = msf_recvmsg_v2(c->fd, &c->desc.rx_msghdr, MSG_NOSIGNAL | MSG_WAITALL);
 
     MSF_RPC_LOG(DBG_INFO, "Recv data len is %u.", rc);
 
@@ -472,7 +474,7 @@ static void rx_thread_read_data(struct conn *c) {
     return;
 }
 
-static void rx_thread_callback(void *arg) {
+void rx_thread_callback(void *arg) {
 
     s32 rc = -1;
     struct conn *c = (struct conn*)arg;
@@ -551,7 +553,7 @@ static void tx_thread_callback(void *arg) {
 
     tx_thread_map(c, tx_cmd);
 
-    rc = msf_sendmsg(rpc->cli_conn.fd, &c->desc.tx_msghdr);
+    rc = msf_sendmsg_v2(rpc->cli_conn.fd, &c->desc.tx_msghdr, MSG_NOSIGNAL | MSG_WAITALL);
     tx_handle_result(c, rc);
     if (unlikely(io_close == c->desc.send_state)) {
         MSF_RPC_LOG(DBG_ERROR, "TX sendmsg not done, ret(%d).", rc);
@@ -604,23 +606,6 @@ s32 timer_init(void) {
     return 0;
 }
 
-
-s32 timer_func(void *arg) {
-    
-    struct timeval newtime, difference;
-    gettimeofday(&newtime, NULL);
-    timersub(&newtime, &rpc->lasttime, &difference);
-    double  elapsed = difference.tv_sec + (difference.tv_usec / 1.0e6);
-
-    //client_reg_heart(RPC_HEARTBEAT);
-
-    MSF_RPC_LOG(DBG_INFO, "client_timer called at %d: %.3f seconds elapsed.",
-            (int)newtime.tv_sec, elapsed);
-    rpc->lasttime = newtime;
-
-    return -1;
-}
-
 s32 thread_init(void) {
 
     s32 rc = -1;
@@ -641,32 +626,17 @@ s32 thread_init(void) {
         return -1;
     }
 
-    rpc->rx_evt = msf_event_new(rpc->cli_conn.fd, rx_thread_callback,
-                    NULL, NULL, &rpc->cli_conn);
-    if (!rpc->rx_evt) {
-        return -1;
-    }
-
     msf_event_add(rpc->tx_evt_base, rpc->tx_evt);
-    msf_event_add(rpc->rx_evt_base, rpc->rx_evt);
 
-    rc = pthread_spawn(&rpc->tx_tid, (void*)tx_thread_worker, rpc);
+    rc = msf_pthread_spawn(&rpc->tx_tid, (void*)tx_thread_worker, rpc);
     if (rc < 0) {
         MSF_RPC_LOG(DBG_ERROR, "TX thread create failed, ret(%d), errno(%d).", rc, errno);
         return -1;
     }
 
-    rc = pthread_spawn(&rpc->rx_tid, (void*)rx_thread_worker, rpc);
+    rc = msf_pthread_spawn(&rpc->rx_tid, (void*)rx_thread_worker, rpc);
     if (rc < 0) {
         MSF_RPC_LOG(DBG_ERROR, "RX thread create failed, ret(%d), errno(%d).", rc, errno);
-        return -1;
-    }
-
-    msf_timer_add(1, 2000, timer_func, rpc, CYCLE_TIMER, 100);
-
-    rc = login_init();
-    if (rc < 0) {
-        MSF_RPC_LOG(DBG_ERROR, "Add login request failed, ret(%d), errno(%d).", rc, errno);
         return -1;
     }
 
@@ -677,7 +647,7 @@ s32 thread_init(void) {
 
 void thread_deinit(void) {
 
-    rpc->stop_flag = true;
+    rpc->stop_flag = MSF_TRUE;
     msf_event_del(rpc->tx_evt_base, rpc->tx_evt);
     msf_event_del(rpc->rx_evt_base, rpc->rx_evt);
     msf_event_free(rpc->tx_evt);

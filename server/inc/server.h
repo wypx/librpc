@@ -19,7 +19,7 @@
 #define HAVE_KEEPALIVE_TUNABLE  1
 
 #define _GNU_SOURCE
-#include <msf_cpu.h>
+#include <msf_errno.h>
 #include <msf_os.h>
 #include <msf_svc.h>
 #include <conn.h>
@@ -68,39 +68,18 @@ enum config_idx {
 struct config_option {
     enum config_idx id;
     s8 value[max_config_len];
-} MSF_PACKED_MEMORY;
+};
 
 struct  network_ops {
-    s32 (*s_sock_init)(s8 *data, u32 len);
+    s32 (*s_sock_init)(void);
+    void (*s_sock_deinit)(void);
     s32 (*s_option_cb)(s32 fd);
     s32 (*s_read_cb)(s8 *data, u32 len);
     s32 (*s_write_cb)(s8 *data, u32 len);
-    s32 (*s_drain_cb)(s8 *data, u32 len);
+    void (*s_drain_cb)(s32 fd, u32 n_packets);
     s32 (*s_close_cb)(s8 *data, u32 len);
-} MSF_PACKED_MEMORY;
-
-struct rx_thread {
-    pthread_t   tid;
-    s32     thread_idx;/* unique ID id of this thread */
-    s8      *thread_name; 
-
-    s32     epoll_num;
-    s32     epoll_fd;
-    s32     event_fd;
-    s32     timer_fd;
-} MSF_PACKED_MEMORY;
-
-struct tx_thread {
-    pthread_t   tid;        /* unique ID id of this thread */
-    s32         thread_idx;
-    sem_t       *thread_sem;
-    s8          *thread_name;
-
-    sem_t       sem;
-    pthread_spinlock_t tx_cmd_lock;
-    struct list_head tx_cmd_list; /* queue of tx connections to handle*/
-} MSF_PACKED_MEMORY;
-
+    s32 (*s_listen_cb)(s32 backlog);
+};
 
 struct srv_listen {
     s32 fd;
@@ -176,7 +155,6 @@ struct server {
 
     s32     pack_type;
 
-    s32     stop_listen;
     s32     stop_flags;
     s32     status;     /* server running status now */
 
@@ -205,6 +183,7 @@ struct server {
     struct cmd  *free_cmd;
     pthread_spinlock_t cmd_lock;
 
+    struct  network_ops *net_ops;
     pthread_t   listen_tid;
     s32         listen_num;
     s32         listen_ep_fd;
@@ -222,7 +201,7 @@ struct server {
     pthread_cond_t  init_cond;
 
     s8              reserved[max_reserverd_len];
-}MSF_PACKED_MEMORY;
+};
 
 extern struct server *srv;
 

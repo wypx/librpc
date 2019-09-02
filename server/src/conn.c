@@ -174,7 +174,7 @@ struct conn *conn_new(s32 new_fd, s16 event) {
         } else {
             msf_add_event(new_conn->rx->epoll_fd, new_fd, event, new_conn);
         }
-        new_conn->state = true;
+        new_conn->state = MSF_TRUE;
     } else {
         MSF_AGENT_LOG(DBG_ERROR, "Fail to get a new conn.");
     }
@@ -182,6 +182,9 @@ struct conn *conn_new(s32 new_fd, s16 event) {
 }
 
 void conn_free(struct conn *c) {
+
+    srv->cur_conns--;
+    srv->net_ops->s_listen_cb(srv->backlog);
 
     dictDelete(srv->conn_dict, c->key);
 

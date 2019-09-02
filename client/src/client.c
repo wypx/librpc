@@ -55,32 +55,72 @@ s32 signal_init(void) {
     signal_handler(SIGBUS, sig_handler);
     signal_handler(SIGSEGV, sig_handler);
     signal_handler(SIGILL, sig_handler);
+
     return 0;
 }
 
-s32 network_init(void) {
+s32 cli_event_init(void) {
 
+    struct conn *evc = NULL;
+
+    evc = &rpc->evt_conn;
+    
+    evc->desc.recv_stage = stage_recv_bhs;
+    evc->desc.send_stage  = stage_send_bhs;
+
+    evc->fd = msf_eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC | EFD_SEMAPHORE);
+    if (evc->fd < 0) {
+        return -1;
+    }
+
+    MSF_RPC_LOG(DBG_INFO,  "Network init event fd(%u).", evc->fd);
+
+    usleep(500);
+    
+    return 0;
+}
+
+s32 cli_log_init(void)
+{
+    s32 rc;
+    s8 log_path[256] = { 0 };
+    s8 proc_name[256] = { 0 };
+
+    rc = msf_get_process_name(proc_name);
+    if (rc != MSF_OK) {
+        return MSF_ERR;
+    }
+
+    msf_snprintf(log_path, sizeof(log_path)-1,
+        RPC_LOG_FILE_PATH, proc_name);
+    rc= msf_log_init(log_path);
+    if (rc != MSF_OK) {
+        return MSF_ERR;
+    }
+
+    return MSF_OK;
+}
+
+extern void rx_thread_callback(void *arg);
+extern s32 login_init(void);
+s32 cli_connect_agent(void)
+{
     s32 rc = -1;
     s16 event = EPOLLIN;
     s8 unix_path[128] = { 0 };
 
     struct conn *clic = NULL;
-    struct conn *evc = NULL;
 
     clic = &rpc->cli_conn;
-    evc = &rpc->evt_conn;
 
     msf_memzero(&clic->desc, sizeof( struct conn_desc));
     
     clic->desc.recv_stage = stage_recv_bhs;
     clic->desc.send_stage  = stage_send_bhs;
 
-    evc->desc.recv_stage = stage_recv_bhs;
-    evc->desc.send_stage  = stage_send_bhs;
-
     if (0 == msf_strncmp(rpc->srv_host, LOCAL_HOST_V4, strlen(LOCAL_HOST_V4))
      || 0 == msf_strncmp(rpc->srv_host, LOCAL_HOST_V4, strlen(LOCAL_HOST_V6))) {
-        snprintf(unix_path, sizeof(unix_path) - 1, 
+        msf_snprintf(unix_path, sizeof(unix_path) - 1, 
             MSF_RPC_UNIX_FORMAT, rpc->cli_conn.name);
         clic->fd = msf_connect_unix_socket(unix_path, MSF_RPC_UNIX_SERVER);
     } else {
@@ -91,31 +131,60 @@ s32 network_init(void) {
         return -1;
     }
 
-    evc->fd = msf_eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC | EFD_SEMAPHORE);
-    if (evc->fd < 0) {
+    MSF_RPC_LOG(DBG_INFO,  "Network init client fd(%u).", clic->fd);
+
+    rpc->rx_evt = msf_event_new(rpc->cli_conn.fd, rx_thread_callback,
+                NULL, NULL, &rpc->cli_conn);
+    if (!rpc->rx_evt) {
         return -1;
     }
+    msf_event_add(rpc->rx_evt_base, rpc->rx_evt);
 
-    MSF_RPC_LOG(DBG_INFO,  "Network init client fd(%u).", clic->fd);
-    MSF_RPC_LOG(DBG_INFO,  "Network init event fd(%u).", evc->fd);
-
-    usleep(500);
-    
+    rc = login_init();
+    if (rc < 0) {
+        MSF_RPC_LOG(DBG_ERROR, "Add login request failed, ret(%d), errno(%d).", rc, errno);
+        return -1;
+    }
     return 0;
 }
 
-s32 client_agent_init(struct client_param *param) {
-
-    if (unlikely(!param || !param->name || !param->host ||
-            !param->port || !param->req_scb || !param->ack_scb)) {
-        MSF_RPC_LOG(DBG_ERROR, "RPC client init param invalid");
+s32 cli_check_param(struct client_param *param)
+{
+    if (!param) {
+        MSF_RPC_LOG(DBG_ERROR, "Cli param pointer invalid.");
         return -1;
     }
 
-    s8 log_path[256] = { 0 };
-    snprintf(log_path, sizeof(log_path)-1, RPC_LOG_FILE_PATH, param->name);
-    msf_log_init(log_path);
+    if (!param->name) {
+        MSF_RPC_LOG(DBG_ERROR, "Cli param name invalid.");
+        return -1;
+    }
 
+    if (!param->host) {
+        MSF_RPC_LOG(DBG_ERROR, "Cli param host invalid.");
+        return -1;
+    }
+
+    if (!param->port) {
+        MSF_RPC_LOG(DBG_ERROR, "Cli param port invalid.");
+        return -1;
+    }
+
+    if (!param->req_scb) {
+        MSF_RPC_LOG(DBG_ERROR, "Cli param seq cb invalid.");
+        return -1;
+    }
+
+    if (!param->ack_scb) {
+        MSF_RPC_LOG(DBG_ERROR, "Cli param ack cb invalid.");
+        return -1;
+    }
+
+    return 0;
+}
+
+void cli_param_init(struct client_param *param)
+{
     msf_memzero(rpc, sizeof(struct client));
     rpc->state = rpc_uninit;
     rpc->rx_tid = ~0;
@@ -123,27 +192,66 @@ s32 client_agent_init(struct client_param *param) {
     rpc->cli_conn.cid = param->cid;
     rpc->req_scb = param->req_scb;
     rpc->ack_scb = param->ack_scb;
-    memcpy(rpc->cli_conn.name, param->name, min(strlen(param->name), (size_t)MAX_CONN_NAME));
-    memcpy(rpc->srv_host, param->host, min(strlen(param->host), sizeof(rpc->srv_host)));
-    memcpy(rpc->srv_port, param->port, min(strlen(param->port), sizeof(rpc->srv_port)));
+    msf_memcpy(rpc->cli_conn.name, param->name,
+        min(msf_strlen(param->name), (size_t)MAX_CONN_NAME));
+    msf_memcpy(rpc->srv_host, param->host,
+        min(msf_strlen(param->host), sizeof(rpc->srv_host)));
+    msf_memcpy(rpc->srv_port, param->port,
+        min(msf_strlen(param->port), sizeof(rpc->srv_port)));
+}
 
-    if (msf_timer_init() < 0) goto error;
+s32 cli_timer_thrd(void *arg) {
+    
+    struct timeval newtime, difference;
+    gettimeofday(&newtime, NULL);
+    timersub(&newtime, &rpc->lasttime, &difference);
+    double  elapsed = difference.tv_sec + (difference.tv_usec / 1.0e6);
+
+    //client_reg_heart(RPC_HEARTBEAT);
+
+    MSF_RPC_LOG(DBG_DEBUG,
+            "Cli timer called at %d: %.3f seconds elapsed.",
+            (s32)newtime.tv_sec, elapsed);
+    
+    if (rpc->state == rpc_uninit) {
+        MSF_RPC_LOG(DBG_DEBUG, "Cli ready reconnect to server...");
+        if (cli_connect_agent() == 0) {
+            rpc->state = rpc_inited;
+        }
+    }
+
+    rpc->lasttime = newtime;
+
+    return -1;
+}
+
+s32 client_agent_init(struct client_param *param)
+{
+    s32 rc;
+
+    if (unlikely(cli_check_param(param) < 0)) {
+        return -1;
+    }
+
+    cli_param_init(param);
+
+    if (cli_log_init() < 0) {
+        return -1;
+    }
 
     if (signal_init() < 0) goto error;
 
-    MSF_RPC_LOG(DBG_INFO, "Client signal init successful");
-
     if (cmd_init() < 0) goto error;
-    
-    MSF_RPC_LOG(DBG_INFO, "Client cmd init successful");
 
-    if (network_init() < 0) goto error;
-
-    MSF_RPC_LOG(DBG_INFO, "Client network init successful");
+    if (cli_event_init() < 0) goto error;
 
     if (thread_init() < 0) goto error;
 
-    MSF_RPC_LOG(DBG_INFO, "Client thread init successful");
+    if (cli_connect_agent() < 0) goto error;
+
+    if (msf_timer_init() < 0) goto error;
+
+    msf_timer_add(1, 2000, cli_timer_thrd, rpc, CYCLE_TIMER, 100);
 
     rpc->state = rpc_inited;
 
@@ -198,7 +306,7 @@ s32 client_agent_service(struct basic_pdu *pdu) {
     new_cmd->callback = rpc->req_scb;
 
     if (pdu->paylen > 0) {
-        memcpy((s8*)new_cmd->buffer, pdu->payload, pdu->paylen);
+        msf_memcpy((s8*)new_cmd->buffer, pdu->payload, pdu->paylen);
     }
 
     refcount_incr(&new_cmd->ref_cnt);
@@ -212,11 +320,11 @@ s32 client_agent_service(struct basic_pdu *pdu) {
 
     if (MSF_NO_WAIT != pdu->timeout) {
 
-        sem_init(&(new_cmd)->ack_sem, 0, 0);
+        msf_sem_init(&new_cmd->ack_sem);
         /* Check what happened */
-        if (-1 == sem_wait_i(&(new_cmd->ack_sem), pdu->timeout)) {
+        if (-1 == msf_sem_wait(&(new_cmd->ack_sem), pdu->timeout)) {
             MSF_RPC_LOG(DBG_ERROR, "Wait for service ack timeout(%u)", pdu->timeout);
-            sem_destroy(&(new_cmd)->ack_sem);
+            msf_sem_destroy(&(new_cmd)->ack_sem);
             cmd_free(new_cmd);
             return -2;
         } 
@@ -224,10 +332,10 @@ s32 client_agent_service(struct basic_pdu *pdu) {
         MSF_RPC_LOG(DBG_INFO, "Notify peer errcode[%d]", bhs->errcode);
 
         if (likely(RPC_EXEC_SUCC == bhs->errcode)) {
-            memcpy(pdu->restload, (s8*)new_cmd->buffer, pdu->restlen);
+            msf_memcpy(pdu->restload, (s8*)new_cmd->buffer, pdu->restlen);
         }
 
-        sem_destroy(&new_cmd->ack_sem);
+        msf_sem_destroy(&new_cmd->ack_sem);
         cmd_free(new_cmd);
     }
     

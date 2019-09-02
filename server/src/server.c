@@ -28,13 +28,11 @@ extern struct cmd *cmd_new(void);
 
 extern s32 thread_init(void);
 extern void thread_deinit(void);
-extern s32 network_init(void);
-extern void network_deinit(void);
 
 MSF_LIBRARY_INITIALIZER(process_init, 101) {
 
     s8 log_path[256] = { 0 };
-    snprintf(log_path, sizeof(log_path)-1, "logger/%s.log", "AGENT");
+    msf_snprintf(log_path, sizeof(log_path)-1, "logger/%s.log", "AGENT");
 
     if (msf_log_init(log_path) < 0) {
       return;
@@ -48,20 +46,20 @@ MSF_LIBRARY_INITIALIZER(param_init, 102) {
     srv->conf_file = default_config_path;
     srv->log_file = default_log_path;
 
-    srv->daemon = false;
-    srv->verbose = true;
+    srv->daemon = MSF_FALSE;
+    srv->verbose = MSF_TRUE;
 
     srv->backlog = max_listen_backlog;
-    srv->unix_enable = true;
-    srv->unix_socket = invalid_socket;
+    srv->unix_enable = MSF_TRUE;
+    srv->unix_socket = MSF_INVALID_SOCKET;
     srv->access_mask = 0777;
     srv->unix_path = default_unix_path;
 
-    srv->net_enable_v4 = false;
-    srv->net_socket_v4 = invalid_socket;
+    srv->net_enable_v4 = MSF_FALSE;
+    srv->net_socket_v4 = MSF_INVALID_SOCKET;
     srv->net_prot_v4 = IPPROTO_TCP;
-    srv->net_enable_v6 = false;
-    srv->net_socket_v6 = invalid_socket;
+    srv->net_enable_v6 = MSF_FALSE;
+    srv->net_socket_v6 = MSF_INVALID_SOCKET;
     srv->net_prot_v6 = IPPROTO_TCP;
     srv->tcp_port = 9999;
     srv->udp_port = 8888;
@@ -78,8 +76,8 @@ MSF_LIBRARY_INITIALIZER(param_init, 102) {
     srv->used_cores = get_nprocs();
     srv->max_thread = srv->used_cores - 1;
 
-    pthread_mutex_init(&srv->init_lock, NULL);
-    pthread_cond_init(&srv->init_cond, NULL);
+    msf_mutex_init(&srv->init_lock);
+    msf_cond_init(&srv->init_cond);
 
     MSF_AGENT_LOG(DBG_DEBUG, "Server param init successful.");
 }
@@ -128,7 +126,8 @@ MSF_UNUSED_CHECK s32 server_init(void) {
 
     MSF_AGENT_LOG(DBG_DEBUG, "Server thread init successful.");
 
-    if (network_init() < 0) goto exit;
+    rc = srv->net_ops->s_sock_init();
+    if (rc < 0) goto exit;
 
     MSF_AGENT_LOG(DBG_DEBUG, "Server network init successful.");
 
@@ -149,7 +148,7 @@ MSF_LIBRARY_FINALIZER(server_deinit) {
     cmd_deinit();
     conn_deinit();
     thread_deinit();
-    network_deinit();
+    srv->net_ops->s_sock_deinit();
     return;
 }
 

@@ -81,7 +81,7 @@ s32 main () {
     param.ack_scb = upnp_ack_scb;
     
     memcpy(upnp.friend_name, MSF_MOD_UPNP, strlen(MSF_MOD_UPNP));
-    upnp.upnp_nat = 1;
+    upnp.upnp_nat = MSF_TRUE;
     upnp.upnp_discovery = 2;
 
     rc = client_agent_init(&param);
